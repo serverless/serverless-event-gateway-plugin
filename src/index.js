@@ -13,227 +13,13 @@ class EGPlugin {
     this.providerNaming = this.awsProvider.naming;
 
     this.hooks = {
-      'package:finalize': this.finalize.bind(this),
+      'package:compileEvents': this.compile.bind(this),
+      'after:deploy:deploy': this.afterDeploy.bind(this),
     };
   }
 
-  getAlarms(alarms, definitions) {
-    if (!alarms) return [];
-
-    return alarms.reduce((result, alarm) => {
-      if (_.isString(alarm)) {
-        const definition = definitions[alarm];
-
-        if (!definition) {
-          throw new Error(`Alarm definition ${alarm} does not exist!`);
-        }
-
-        result.push(Object.assign({}, definition, {
-          name: alarm
-        }));
-      } else if (_.isObject(alarm)) {
-        result.push(_.merge({}, definitions[alarm.name], alarm));
-      }
-
-      return result;
-    }, []);
-  }
-
-  getGlobalAlarms(config, definitions) {
-    if (!config) throw new Error('Missing config argument');
-    if (!definitions) throw new Error('Missing definitions argument');
-
-    const alarms = _.union(config.alarms, config.global, config.function);
-
-    return this.getAlarms(alarms, definitions);
-  }
-
-  getFunctionAlarms(functionObj, config, definitions) {
-    if (!config) throw new Error('Missing config argument');
-    if (!definitions) throw new Error('Missing definitions argument');
-
-    const alarms = functionObj.alarms;
-    return this.getAlarms(alarms, definitions);
-  }
-
-  getAlarmCloudFormation(alertTopics, definition, functionRef) {
-    if (!functionRef) {
-      return;
-    }
-
-    const okActions = [];
-    const alarmActions = [];
-    const insufficientDataActions = [];
-
-    if (alertTopics.ok) {
-      okActions.push(alertTopics.ok);
-    }
-
-    if (alertTopics.alarm) {
-      alarmActions.push(alertTopics.alarm);
-    }
-
-    if (alertTopics.insufficientData) {
-      insufficientDataActions.push(alertTopics.insufficientData);
-    }
-
-    const namespace = definition.pattern ?
-      this.awsProvider.naming.getStackName() :
-      definition.namespace;
-
-    const metricName = definition.pattern ?
-      this.naming.getPatternMetricName(definition.metric, functionRef) :
-      definition.metric;
-
-    const dimensions = definition.pattern ? [] : [{
-      Name: 'FunctionName',
-      Value: {
-        Ref: functionRef,
-      }
-    }];
-
-    const treatMissingData = definition.treatMissingData ? definition.treatMissingData : 'missing';
-
-    const alarm = {
-      Type: 'AWS::CloudWatch::Alarm',
-      Properties: {
-        Namespace: namespace,
-        MetricName: metricName,
-        AlarmDescription: definition.description,
-        Threshold: definition.threshold,
-        Period: definition.period,
-        EvaluationPeriods: definition.evaluationPeriods,
-        ComparisonOperator: definition.comparisonOperator,
-        OKActions: okActions,
-        AlarmActions: alarmActions,
-        InsufficientDataActions: insufficientDataActions,
-        Dimensions: dimensions,
-        TreatMissingData: treatMissingData,
-      }
-    };
-
-    const statisticValues = [ 'SampleCount', 'Average', 'Sum', 'Minimum', 'Maximum'];
-    if (_.includes(statisticValues, definition.statistic)) {
-      alarm.Properties.Statistic = definition.statistic
-    } else {
-      alarm.Properties.ExtendedStatistic = definition.statistic
-    }
-    return alarm;
-  }
-
-  getSnsTopicCloudFormation(topicName, notifications) {
-    const subscription = (notifications || []).map((n) => ({
-      Protocol: n.protocol,
-      Endpoint: n.endpoint
-    }));
-
-    return {
-      Type: 'AWS::SNS::Topic',
-      Properties: {
-        TopicName: topicName,
-        Subscription: subscription,
-      }
-    };
-  }
-
-  compileAlertTopics(config) {
-    const alertTopics = {};
-
-    if (config.topics) {
-      Object.keys(config.topics).forEach((key) => {
-        const topicConfig = config.topics[key];
-        const isTopicConfigAnObject = _.isObject(topicConfig);
-
-        const topic = isTopicConfigAnObject ? topicConfig.topic : topicConfig;
-        const notifications = isTopicConfigAnObject ? topicConfig.notifications : [];
-
-        if (topic) {
-          if (topic.indexOf('arn:') === 0) {
-            alertTopics[key] = topic;
-          } else {
-            const cfRef = `AwsAlerts${_.upperFirst(key)}`;
-            alertTopics[key] = {
-              Ref: cfRef
-            };
-
-            this.addCfResources({
-              [cfRef]: this.getSnsTopicCloudFormation(topic, notifications),
-            });
-          }
-        }
-      });
-    }
-
-    return alertTopics;
-  }
-
-  getLogMetricCloudFormation(alarm, functionName, normalizedFunctionName, functionObj) {
-    if (!alarm.pattern) return {};
-
-    const logMetricCFRefBase = this.naming.getLogMetricCloudFormationRef(normalizedFunctionName, alarm.name);
-    const logMetricCFRefALERT = `${logMetricCFRefBase}ALERT`;
-    const logMetricCFRefOK = `${logMetricCFRefBase}OK`;
-
-    const cfLogName = this.providerNaming.getLogGroupLogicalId(functionName);
-    const metricNamespace = this.providerNaming.getStackName();
-    const logGroupName = this.providerNaming.getLogGroupName(functionObj.name);
-    const metricName = this.naming.getPatternMetricName(alarm.metric, normalizedFunctionName);
-
-    return {
-      [logMetricCFRefALERT]: {
-        Type: 'AWS::Logs::MetricFilter',
-        DependsOn: cfLogName,
-        Properties: {
-          FilterPattern: alarm.pattern,
-          LogGroupName: logGroupName,
-          MetricTransformations: [{
-            MetricValue: 1,
-            MetricNamespace: metricNamespace,
-            MetricName: metricName
-          }]
-        }
-      },
-      [logMetricCFRefOK]: {
-        Type: 'AWS::Logs::MetricFilter',
-        DependsOn: cfLogName,
-        Properties: {
-          FilterPattern: '',
-          LogGroupName: logGroupName,
-          MetricTransformations: [{
-            MetricValue: 0,
-            MetricNamespace: metricNamespace,
-            MetricName: metricName
-          }]
-        }
-      }
-    };
-  }
-
-  compileAlarms(config, definitions, alertTopics) {
-    const globalAlarms = this.getGlobalAlarms(config, definitions);
-
-    this.serverless.service.getAllFunctions().forEach((functionName) => {
-      const functionObj = this.serverless.service.getFunction(functionName);
-
-      const normalizedFunctionName = this.providerNaming.getLambdaLogicalId(functionName);
-
-      const functionAlarms = this.getFunctionAlarms(functionObj, config, definitions);
-      const alarms = globalAlarms.concat(functionAlarms);
-
-      const alarmStatements = alarms.reduce((statements, alarm) => {
-        const key = this.naming.getAlarmCloudFormationRef(alarm.name, functionName);
-        const cf = this.getAlarmCloudFormation(alertTopics, alarm, normalizedFunctionName);
-
-        statements[key] = cf;
-
-        const logMetricCF = this.getLogMetricCloudFormation(alarm, functionName, normalizedFunctionName, functionObj);
-        _.merge(statements, logMetricCF);
-
-        return statements;
-      }, {});
-
-      this.addCfResources(alarmStatements);
-    });
+  getConfig() {
+    return this.serverless.service.custom.alerts;
   }
 
   addUserDefinition() {
@@ -293,23 +79,52 @@ class EGPlugin {
     })
   }
 
-  finalize() {
-    const config = this.serverless.service.custom;
+  compile() {
+    const config = this.getConfig();
     if (!config) {
       // TODO warn no config
       return;
     }
 
-    const definitions = this.getDefinitions(config);
-    const alertTopics = this.compileAlertTopics(config);
-
-    this.compileAlarms(config, definitions, alertTopics);
-
     this.addUserDefinition()
   }
 
-  addCfResources(resources) {
-    _.merge(this.serverless.service.provider.compiledCloudFormationTemplate.Resources, resources);
+  afterDeploy() {
+    return this.awsProvider.request(
+      'CloudFormation',
+      'describeStacks',
+      { StackName: this.awsProvider.naming.getStackName() },
+      this.serverless.getProvider('aws').getStage(),
+      this.serverless.getProvider('aws').getRegion()
+    ).then(data => {
+      if (!(data instanceof Object && data.hasOwnProperty('Stacks') && data['Stacks'] instanceof Array)) {
+        throw new Error('Unable to fetch Stack information')
+      }
+
+      const stack = data['Stacks'].pop() || { Outputs: [] }
+      const outputs = stack.Outputs || []
+
+      const parsedOutputs = outputs.reduce((agg, current) => {
+        if (current.hasOwnProperty('OutputKey') && current.hasOwnProperty('OutputValue')) {
+          agg[current['OutputKey']] = current['OutputValue']
+        }
+        return agg
+      }, {})
+
+      this.serverless.cli.log("\n" +
+        'EventGatewayUserAccessKey: ' + parsedOutputs['EventGatewayUserAccessKey'] + "\n" +
+        'EventGatewayUserSecretKey: ' + parsedOutputs['EventGatewayUserSecretKey']
+      )
+      Object.keys(parsedOutputs).forEach(key => {
+        if (key.endsWith('LambdaFunctionQualifiedArn')) {
+          this.serverless.cli.log(key + ": " + parsedOutputs[key])
+        }
+      })
+
+      if (!(parsedOutputs.hasOwnProperty('EventGatewayUserAccessKey') && parsedOutputs.hasOwnProperty('EventGatewayUserSecretKey'))) {
+        throw new Error('Access Key or Secret Key not found in outputs')
+      }
+    })
   }
 }
 
