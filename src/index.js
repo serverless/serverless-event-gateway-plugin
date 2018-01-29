@@ -2,6 +2,11 @@
 
 // Try to remove this. Such a large package
 const _ = require('lodash');
+const fdk = require('@serverless/fdk');
+const eventGateway = fdk.eventGateway({
+  url: 'http://localhost',
+})
+
 
 
 class EGPlugin {
@@ -121,6 +126,17 @@ class EGPlugin {
       Object.keys(parsedOutputs).forEach(key => {
         if (key.endsWith('LambdaFunctionQualifiedArn')) {
           this.serverless.cli.log(key + ": " + parsedOutputs[key])
+
+          eventGateway.registerFunction({
+            functionId: key.substring(0, key.indexOf('LambdaFunctionQualifiedArn')),
+            provider: {
+              type: 'awslambda',
+              arn: parsedOutputs[key],
+              region: this.awsProvider.getRegion(),
+              awsAccessKeyId: parsedOutputs['EventGatewayUserAccessKey'],
+              awsSecretAccessKey: parsedOutputs['EventGatewayUserSecretKey'],
+            }
+          })
         }
       })
     })
