@@ -240,10 +240,10 @@ class EGPlugin {
 
   addUserDefinition() {
     _.merge(this.serverless.service.provider.compiledCloudFormationTemplate.Resources, {
-      "CustomCentralUser": {
+      "EventGatewayUser": {
         "Type": "AWS::IAM::User"
       },
-      "CustomPolicy": {
+      "EventGatewayUserPolicy": {
         "Type": "AWS::IAM::ManagedPolicy",
         "Properties": {
           "Description": "This policy allows Custom plugin to gather data on IAM users",
@@ -253,7 +253,7 @@ class EGPlugin {
               {
                 "Effect": "Allow",
                 "Action": [
-                  "iam:GetGroupPolicy",
+                  "lambda:InvokeFunction",
                 ],
                 "Resource": "*"
               }
@@ -261,32 +261,32 @@ class EGPlugin {
           },
           "Users": [
             {
-              "Ref": "CustomCentralUser"
+              "Ref": "EventGatewayUser"
             }
           ]
         }
       },
-      "CustomUserKeys": {
+      "EventGatewayUserKeys": {
         "Type": "AWS::IAM::AccessKey",
         "Properties": {
           "UserName": {
-            "Ref": "CustomCentralUser"
+            "Ref": "EventGatewayUser"
           }
         }
       }
     })
 
     _.merge(this.serverless.service.provider.compiledCloudFormationTemplate.Outputs, {
-      "AccessKey": {
+      "EventGatewayUserAccessKey": {
         "Value": {
-          "Ref": "CustomUserKeys"
+          "Ref": "EventGatewayUserKeys"
         },
         "Description": "Access Key ID of Custom User"
       },
-      "SecretKey": {
+      "EventGatewayUserSecretKey": {
         "Value": {
           "Fn::GetAtt": [
-            "CustomUserKeys",
+            "EventGatewayUserKeys",
             "SecretAccessKey"
           ]
         },
