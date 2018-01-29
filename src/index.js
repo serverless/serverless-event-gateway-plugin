@@ -94,8 +94,8 @@ class EGPlugin {
       'CloudFormation',
       'describeStacks',
       { StackName: this.awsProvider.naming.getStackName() },
-      this.serverless.getProvider('aws').getStage(),
-      this.serverless.getProvider('aws').getRegion()
+      this.awsProvider.getStage(),
+      this.awsProvider.getRegion()
     ).then(data => {
       if (!(data instanceof Object && data.hasOwnProperty('Stacks') && data['Stacks'] instanceof Array)) {
         throw new Error('Unable to fetch Stack information')
