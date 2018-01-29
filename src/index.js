@@ -3,7 +3,6 @@
 // Try to remove this. Such a large package
 const _ = require('lodash');
 
-const Naming = require('./naming');
 
 class EGPlugin {
   constructor(serverless, options) {
@@ -12,7 +11,6 @@ class EGPlugin {
 
     this.awsProvider = this.serverless.getProvider('aws');
     this.providerNaming = this.awsProvider.naming;
-    this.naming = new Naming();
 
     this.hooks = {
       'package:finalize': this.finalize.bind(this),
