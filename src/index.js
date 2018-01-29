@@ -111,6 +111,10 @@ class EGPlugin {
         return agg
       }, {})
 
+      if (!(parsedOutputs.hasOwnProperty('EventGatewayUserAccessKey') && parsedOutputs.hasOwnProperty('EventGatewayUserSecretKey'))) {
+        throw new Error('Access Key or Secret Key not found in outputs')
+      }
+
       this.serverless.cli.log("\n" +
         'EventGatewayUserAccessKey: ' + parsedOutputs['EventGatewayUserAccessKey'] + "\n" +
         'EventGatewayUserSecretKey: ' + parsedOutputs['EventGatewayUserSecretKey']
@@ -120,10 +124,6 @@ class EGPlugin {
           this.serverless.cli.log(key + ": " + parsedOutputs[key])
         }
       })
-
-      if (!(parsedOutputs.hasOwnProperty('EventGatewayUserAccessKey') && parsedOutputs.hasOwnProperty('EventGatewayUserSecretKey'))) {
-        throw new Error('Access Key or Secret Key not found in outputs')
-      }
     })
   }
 }
