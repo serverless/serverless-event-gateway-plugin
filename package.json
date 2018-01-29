@@ -17,6 +17,7 @@
     "serverless": "^1.12.0"
   },
   "dependencies": {
+    "@serverless/fdk": "^0.6.0",
     "lodash": "^4.16.6"
   },
   "devDependencies": {
