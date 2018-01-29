@@ -115,10 +115,9 @@ class EGPlugin {
         throw new Error('Access Key or Secret Key not found in outputs')
       }
 
-      this.serverless.cli.log("\n" +
-        'EventGatewayUserAccessKey: ' + parsedOutputs['EventGatewayUserAccessKey'] + "\n" +
-        'EventGatewayUserSecretKey: ' + parsedOutputs['EventGatewayUserSecretKey']
-      )
+      this.serverless.cli.log('EventGatewayUserAccessKey: ' + parsedOutputs['EventGatewayUserAccessKey'])
+      this.serverless.cli.log('EventGatewayUserSecretKey: ' + parsedOutputs['EventGatewayUserSecretKey'])
+
       Object.keys(parsedOutputs).forEach(key => {
         if (key.endsWith('LambdaFunctionQualifiedArn')) {
           this.serverless.cli.log(key + ": " + parsedOutputs[key])
