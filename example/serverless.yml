@@ -1,0 +1,24 @@
+service: service-test-sls-plugin-eg
+provider:
+  name: aws
+  runtime: nodejs4.3
+  region: us-east-1
+
+package:
+  exclude:
+    - node_modules/**
+    - yarn.lock
+
+custom:
+
+
+plugins:
+  - sls-plugin-eg
+
+functions:
+  foo:
+    handler: foo.handler
+    events:
+      - http:
+          path: success
+          method: get
