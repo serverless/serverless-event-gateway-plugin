@@ -1,4 +1,4 @@
-service: service-test-alerts-plugin
+service: service-test-eg-plugin
 provider:
   name: aws
   runtime: nodejs4.3
