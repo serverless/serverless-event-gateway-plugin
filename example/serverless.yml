@@ -1,0 +1,27 @@
+service: service-test-eg-plugin
+provider:
+  name: aws
+  runtime: nodejs4.3
+  region: us-east-1
+  profile: ${opt:profile}
+
+package:
+  exclude:
+    - node_modules/**
+    - yarn.lock
+
+custom:
+  # notifications:
+  #   - protocol: email
+  #     endpoint: your_email_here
+
+plugins:
+  - sls-plugin-eg
+
+functions:
+  foo:
+    handler: foo.handler
+    events:
+      - http:
+          path: success
+          method: get

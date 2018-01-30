@@ -1,2 +1,2 @@
-# sls-plugin-eg
-Publishes functions and events to EventGateway
+# Serverless Plugin EventGateway
+Serverless plugin that publishes your functions and events to EventGateway.
