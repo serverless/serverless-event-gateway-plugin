@@ -23,10 +23,6 @@ class EGPlugin {
     };
   }
 
-  getConfig() {
-    return this.serverless.service.custom.alerts;
-  }
-
   addUserDefinition() {
     _.merge(this.serverless.service.provider.compiledCloudFormationTemplate.Resources, {
       "EventGatewayUser": {
@@ -85,12 +81,6 @@ class EGPlugin {
   }
 
   compile() {
-    const config = this.getConfig();
-    if (!config) {
-      // TODO warn no config
-      return;
-    }
-
     this.addUserDefinition()
   }
 
