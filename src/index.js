@@ -39,9 +39,9 @@ class EGPlugin {
   }
 
   emitEvent() {
-    this.initClient();
+    const eg = this.getClient();
 
-    this.eventGateway.emit({
+    eg.emit({
       event: this.options.event,
       data: JSON.parse(this.options.data)
     });
@@ -61,7 +61,7 @@ class EGPlugin {
     return null;
   }
 
-  initClient() {
+  getClient() {
     const config = this.getConfig();
     if (!config) {
       throw new Error(
@@ -81,14 +81,15 @@ class EGPlugin {
       );
     }
 
-    this.eventGateway = fdk.eventGateway({
+    return fdk.eventGateway({
       url: config.eventsAPI,
       configurationUrl: config.configurationAPI
     });
   }
 
   configureEventGateway() {
-    this.initClient();
+    const config = this.getConfig();
+    const eg = this.getClient();
 
     this.serverless.cli.consoleLog("");
     this.serverless.cli.consoleLog(
@@ -132,7 +133,7 @@ class EGPlugin {
             .update(arn)
             .digest("hex");
 
-          this.eventGateway
+          eg
             .registerFunction({
               functionId: functionId,
               provider: {
@@ -167,7 +168,7 @@ class EGPlugin {
                   subscribeEvent.method = event.method || "GET";
                 }
 
-                this.eventGateway.subscribe(subscribeEvent);
+                eg.subscribe(subscribeEvent);
 
                 this.serverless.cli.consoleLog(
                   `EventGateway: Function "${name}" subscribed to "${
