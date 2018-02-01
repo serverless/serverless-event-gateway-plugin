@@ -14,8 +14,37 @@ class EGPlugin {
 
     this.hooks = {
       "package:compileEvents": this.addUserDefinition.bind(this),
-      "after:deploy:finalize": this.configureEventGateway.bind(this)
+      "after:deploy:finalize": this.configureEventGateway.bind(this),
+      "emitremote:emit": this.emitEvent.bind(this)
     };
+
+    this.commands = {
+      emitremote: {
+        usage: "Emit event to hosted Event Gateway",
+        lifecycleEvents: ["emit"],
+        options: {
+          event: {
+            usage: "Event you want to emit",
+            required: true,
+            shortcut: "e"
+          },
+          data: {
+            usage: "Data for the event you want to emit",
+            required: true,
+            shortcut: "d"
+          }
+        }
+      }
+    };
+  }
+
+  emitEvent() {
+    this.initClient();
+
+    this.eventGateway.emit({
+      event: this.options.event,
+      data: JSON.parse(this.options.data)
+    });
   }
 
   getConfig() {
@@ -32,7 +61,7 @@ class EGPlugin {
     return null;
   }
 
-  configureEventGateway() {
+  initClient() {
     const config = this.getConfig();
     if (!config) {
       throw new Error(
@@ -56,6 +85,10 @@ class EGPlugin {
       url: config.eventsAPI,
       configurationUrl: config.configurationAPI
     });
+  }
+
+  configureEventGateway() {
+    this.initClient();
 
     this.serverless.cli.consoleLog("");
     this.serverless.cli.consoleLog(
