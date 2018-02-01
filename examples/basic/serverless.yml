@@ -1,27 +1,25 @@
-service: service-test-eg-plugin
+service: event-gateway-plugin-example-basic
 provider:
   name: aws
   runtime: nodejs4.3
   region: us-east-1
-  profile: ${opt:profile}
 
 package:
   exclude:
     - node_modules/**
-    - yarn.lock
 
 custom:
   eventgateway:
     subdomain: something
 
 plugins:
-  - sls-plugin-eg
+  - serverless-event-gateway-plugin
 
 functions:
-  foo:
-    handler: foo.handler
+  hello:
+    handler: index.handler
     events:
       - eventgateway:
-         event: http
-         path: /
-         method: GET
+          event: http
+          path: /
+          method: GET
