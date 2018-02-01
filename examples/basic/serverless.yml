@@ -10,7 +10,8 @@ package:
 
 custom:
   eventgateway:
-    subdomain: something
+    subdomain: <your subdomain>
+    apikey: <your API key>
 
 plugins:
   - serverless-event-gateway-plugin
