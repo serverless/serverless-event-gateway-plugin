@@ -3,11 +3,7 @@
 // Try to remove this. Such a large package
 const _ = require('lodash');
 const fdk = require('@serverless/fdk');
-const eventGateway = fdk.eventGateway({
-  url: 'http://localhost',
-})
-
-
+const crypto = require('crypto');
 
 class EGPlugin {
   constructor(serverless, options) {
@@ -21,6 +17,10 @@ class EGPlugin {
       'package:compileEvents': this.compile.bind(this),
       'after:deploy:deploy': this.afterDeploy.bind(this),
     };
+  }
+
+  getConfig() {
+    return this.serverless.service.custom && this.serverless.service.custom.eventgateway;
   }
 
   addUserDefinition() {
@@ -81,6 +81,21 @@ class EGPlugin {
   }
 
   compile() {
+    const config = this.getConfig();
+    if (!config) {
+      throw new Error('No EventGateway configuration provided in serverless.yaml')
+    }
+    if (!config['subdomain'] || !config['subdomain'].length) {
+      throw new Error('Required "subdomain" property is missing from EventGateway configuration provided in serverless.yaml')
+    }
+    this.config = config
+
+    this.eventGatewayURL = `https://${this.config['subdomain']}.eventgateway-dev.io`
+    this.eventGateway = fdk.eventGateway({
+      url: this.eventGatewayURL,
+      configurationUrl: 'https://config.eventgateway-dev.io/',
+    })
+
     this.addUserDefinition()
   }
 
@@ -92,7 +107,7 @@ class EGPlugin {
       this.awsProvider.getStage(),
       this.awsProvider.getRegion()
     ).then(data => {
-      if (!(data instanceof Object && data.hasOwnProperty('Stacks') && data['Stacks'] instanceof Array)) {
+      if (!(data instanceof Object && data['Stacks'] && data['Stacks'] instanceof Array)) {
         throw new Error('Unable to fetch Stack information')
       }
 
@@ -100,25 +115,39 @@ class EGPlugin {
       const outputs = stack.Outputs || []
 
       const parsedOutputs = outputs.reduce((agg, current) => {
-        if (current.hasOwnProperty('OutputKey') && current.hasOwnProperty('OutputValue')) {
+        if (current['OutputKey'] && current['OutputValue']) {
           agg[current['OutputKey']] = current['OutputValue']
         }
         return agg
       }, {})
 
-      if (!(parsedOutputs.hasOwnProperty('EventGatewayUserAccessKey') && parsedOutputs.hasOwnProperty('EventGatewayUserSecretKey'))) {
+      if (!(parsedOutputs['EventGatewayUserAccessKey'] && parsedOutputs['EventGatewayUserSecretKey'])) {
         throw new Error('Access Key or Secret Key not found in outputs')
       }
 
       this.serverless.cli.log('EventGatewayUserAccessKey: ' + parsedOutputs['EventGatewayUserAccessKey'])
       this.serverless.cli.log('EventGatewayUserSecretKey: ' + parsedOutputs['EventGatewayUserSecretKey'])
 
-      Object.keys(parsedOutputs).forEach(key => {
-        if (key.endsWith('LambdaFunctionQualifiedArn')) {
-          this.serverless.cli.log(key + ": " + parsedOutputs[key])
+      const functionsWithEvents = this.serverless.service.getAllFunctions().reduce((agg, functionName) => {
+        const functionObj = this.serverless.service.getFunction(functionName)
 
-          eventGateway.registerFunction({
-            functionId: key.substring(0, key.indexOf('LambdaFunctionQualifiedArn')),
+        if (!(functionObj instanceof Object && functionObj['events'] instanceof Array && functionObj['events'].length)) {
+          return
+        }
+        agg.push(functionName.toLowerCase())
+
+        return agg
+      }, [])
+
+      Object.keys(parsedOutputs).forEach(key => {
+        const outputFunctionName = key.substring(0, key.indexOf('LambdaFunctionQualifiedArn')).toLowerCase()
+        const actualFunctionName = functionsWithEvents.find(thisfunc => thisfunc.toLowerCase() === outputFunctionName)
+        if (key.endsWith('LambdaFunctionQualifiedArn') && actualFunctionName) {
+          this.serverless.cli.log(key + ": " + parsedOutputs[key])
+          const functionId = crypto.createHash('sha256','utf8').update(parsedOutputs[key]).digest('hex')
+
+          this.eventGateway.registerFunction({
+            functionId: functionId,
             provider: {
               type: 'awslambda',
               arn: parsedOutputs[key],
@@ -126,6 +155,36 @@ class EGPlugin {
               awsAccessKeyId: parsedOutputs['EventGatewayUserAccessKey'],
               awsSecretAccessKey: parsedOutputs['EventGatewayUserSecretKey'],
             }
+          })
+
+          const functionObj = this.serverless.service.getFunction(actualFunctionName)
+          functionObj['events'].forEach(eventObj => {
+            if (!eventObj['eventgateway']) return
+
+            const event = eventObj['eventgateway']
+            if (!(
+              event instanceof Object &&
+              event['event'] &&
+              event['path']
+            )) {
+              return
+            }
+
+            const eventPath = (event['path'].startsWith('/') ? '' : '/') + event['path']
+            const eventId = event['event']
+            const subscribeEvent = {
+              // Validation of nested objects is above when iterating over all the functions
+              event: eventId,
+              functionId: functionId,
+              method: event['method'].toUpperCase(),
+              path: `/${this.config['subdomain']}${eventPath}`,
+            }
+            if (event['event'] === 'http') {
+              subscribeEvent['method'] = (event['method'] && event['method'].toUpperCase()) || 'GET'
+            }
+            this.eventGateway.subscribe(subscribeEvent)
+
+            this.serverless.cli.log(`${this.eventGatewayURL}${eventPath}`)
           })
         }
       })

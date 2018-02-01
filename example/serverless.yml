@@ -11,9 +11,8 @@ package:
     - yarn.lock
 
 custom:
-  # notifications:
-  #   - protocol: email
-  #     endpoint: your_email_here
+  eventgateway:
+    subdomain: something
 
 plugins:
   - sls-plugin-eg
@@ -22,6 +21,7 @@ functions:
   foo:
     handler: foo.handler
     events:
-      - http:
-          path: success
-          method: get
+      - eventgateway:
+         event: http
+         path: /
+         method: GET
