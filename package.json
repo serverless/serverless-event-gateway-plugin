@@ -1,7 +1,6 @@
 {
-  "name": "serverless-event-gateway-plugin",
-  "version": "0.1.0",
-  "description": "",
+  "name": "@serverless/serverless-event-gateway-plugin",
+  "version": "0.0.1",
   "main": "src/index.js",
   "scripts": {
     "lint": "eslint .",
@@ -10,9 +9,6 @@
   "repository": {
     "url": "https://github.com/serverless/serverless-event-gateway-plugin",
     "type": "git"
-  },
-  "peerDependencies": {
-    "serverless": "^1.26.0"
   },
   "dependencies": {
     "@serverless/fdk": "^0.7.1",
