@@ -38,6 +38,12 @@ class EGPlugin {
         }
       }
     };
+
+    this.stateDataFilePath = path.join(process.cwd(), '.egstate.json');
+    this.state = { functions: [], subscriptions: [] };
+    if (fs.existsSync(this.stateDataFilePath)) {
+      this.state = JSON.parse(fs.readFileSync(this.stateDataFilePath))
+    }
   }
 
   emitEvent() {
@@ -124,24 +130,18 @@ class EGPlugin {
           );
         }
 
-        const stateDataFilePath = path.join(process.cwd(), '.egstate.json');
-        let stateData = { functions: [], subscriptions: [] };
-        if (fs.existsSync(stateDataFilePath)) {
-          stateData = JSON.parse(fs.readFileSync(stateDataFilePath))
-        }
-
         Promise.all(
-          stateData.subscriptions.map(sub => {
+          this.state.subscriptions.map(sub => {
             return eg.unsubscribe({ subscriptionId: sub }).then(() => {
-              stateData.subscriptions.pop();
-              fs.writeFileSync(stateDataFilePath, JSON.stringify(stateData));
+              this.state.subscriptions.pop();
+              this.saveState();
             })
           })
         ).then(() => Promise.all(
-          stateData.functions.map(func => {
+          this.state.functions.map(func => {
             return eg.deleteFunction({ functionId: func }).then(() => {
-              stateData.functions.pop();
-              fs.writeFileSync(stateDataFilePath, JSON.stringify(stateData));
+              this.state.functions.pop();
+              this.saveState();
             })
           })
         )).then(() => Promise.all(
@@ -167,8 +167,8 @@ class EGPlugin {
                 }
               })
               .then(() => {
-                stateData.functions.push(functionId);
-                fs.writeFileSync(stateDataFilePath, JSON.stringify(stateData));
+                this.state.functions.push(functionId);
+                this.saveState();
 
                 this.serverless.cli.consoleLog(
                   `EventGateway: Function "${name}" registered.`
@@ -194,16 +194,15 @@ class EGPlugin {
                       subscribeEvent.method = event.method || "GET";
                     }
 
-                    return eg.subscribe(subscribeEvent).then(subObj => {
-                      stateData.subscriptions.push(subObj['subscriptionId']);
+                    return eg.subscribe(subscribeEvent).then(subscription => {
+                      this.state.subscriptions.push(subscription.subscriptionId);
+                      this.saveState();
 
                       this.serverless.cli.consoleLog(
                         `EventGateway: Function "${name}" subscribed to "${
                           event.event
                           }" event.`
                       );
-
-                      fs.writeFileSync(stateDataFilePath, JSON.stringify(stateData));
                     });
                   })
                 );
@@ -298,6 +297,10 @@ class EGPlugin {
         }
       }
     );
+  }
+
+  saveState() {
+    fs.writeFileSync(this.stateDataFilePath, JSON.stringify(this.state));
   }
 }
 
