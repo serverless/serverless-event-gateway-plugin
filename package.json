@@ -13,8 +13,7 @@
   "dependencies": {
     "@serverless/fdk": "^0.7.1",
     "chalk": "^2.3.0",
-    "lodash.merge": "^4.6.0",
-    "serverless": "^1.26.0"
+    "lodash.merge": "^4.6.0"
   },
   "devDependencies": {
     "eslint": "^4.7.1",
