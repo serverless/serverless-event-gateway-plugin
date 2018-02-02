@@ -1,0 +1,40 @@
+service: eg-example-http-rest-maciej
+provider:
+  name: aws
+  runtime: nodejs4.3
+  region: us-east-1
+
+package:
+  exclude:
+    - node_modules/**
+
+custom:
+  eventgateway:
+    subdomain: serverless
+    apikey: f64e5e0542a3f9f96f47fcc1ab51f7e45149b73f
+
+plugins:
+  - "@serverless/serverless-event-gateway-plugin"
+
+functions:
+  get:
+    handler: index.get
+    events:
+      - eventgateway:
+          event: http
+          method: GET
+          path: /rest/:id
+  post:
+    handler: index.post
+    events:
+      - eventgateway:
+          event: http
+          path: /rest/:id
+          method: POST
+  delete:
+    handler: index.delete
+    events:
+      - eventgateway:
+          event: http
+          path: /rest/:id
+          method: DELETE

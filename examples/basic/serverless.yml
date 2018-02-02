@@ -1,4 +1,4 @@
-service: event-gateway-plugin-example-basic
+service: eg-example-basic
 provider:
   name: aws
   runtime: nodejs4.3
