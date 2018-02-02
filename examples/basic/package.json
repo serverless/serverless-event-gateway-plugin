@@ -1,8 +1,5 @@
 {
   "devDependencies": {
     "@serverless/serverless-event-gateway-plugin": "0.0.3"
-  },
-  "dependencies": {
-    "serverless": "^1.26.0"
   }
 }
