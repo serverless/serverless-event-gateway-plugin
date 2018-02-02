@@ -1,4 +1,4 @@
-service: eg-example-http-rest-maciej
+service: eg-example-http-rest
 provider:
   name: aws
   runtime: nodejs4.3

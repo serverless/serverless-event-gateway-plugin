@@ -132,13 +132,17 @@ class EGPlugin {
 
         Promise.all(
           stateData.subscriptions.map(sub => {
-            stateData.subscriptions.pop();
-            return eg.unsubscribe({ subscriptionId: sub })
+            return eg.unsubscribe({ subscriptionId: sub }).then(() => {
+              stateData.subscriptions.pop();
+              fs.writeFileSync(stateDataFilePath, JSON.stringify(stateData));
+            })
           })
         ).then(() => Promise.all(
           stateData.functions.map(func => {
-            stateData.functions.pop();
-            return eg.deleteFunction({ functionId: func })
+            return eg.deleteFunction({ functionId: func }).then(() => {
+              stateData.functions.pop();
+              fs.writeFileSync(stateDataFilePath, JSON.stringify(stateData));
+            })
           })
         )).then(() => Promise.all(
           this.filterFunctionsWithEvents().map(name => {
@@ -164,6 +168,7 @@ class EGPlugin {
               })
               .then(() => {
                 stateData.functions.push(functionId);
+                fs.writeFileSync(stateDataFilePath, JSON.stringify(stateData));
 
                 this.serverless.cli.consoleLog(
                   `EventGateway: Function "${name}" registered.`
@@ -198,20 +203,19 @@ class EGPlugin {
                           }" event.`
                       );
 
-                      fs.writeFile(stateDataFilePath, JSON.stringify(stateData), (err) => {
-                        if (err) throw new Error(err);
-                      });
+                      fs.writeFileSync(stateDataFilePath, JSON.stringify(stateData));
                     });
                   })
-                ).then(() => {
-                  this.serverless.cli.consoleLog("");
-                  this.serverless.cli.consoleLog(
-                    `EventGateway: Endpoint URL: ${config.eventsAPI}`
-                  );
-                });
+                );
               });
           })
-        ));
+        ))
+        .then(() => {
+          this.serverless.cli.consoleLog("");
+          this.serverless.cli.consoleLog(
+            `Endpoint URL: ${config.eventsAPI}`
+          );
+        });
       });
   }
 
