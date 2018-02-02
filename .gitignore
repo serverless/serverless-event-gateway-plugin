@@ -1,6 +1,8 @@
 .idea
 
 .serverless
+default.etcd
+.egstate.json
 
 # Logs
 logs

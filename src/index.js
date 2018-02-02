@@ -4,6 +4,8 @@ const merge = require("lodash.merge");
 const fdk = require("@serverless/fdk");
 const crypto = require("crypto");
 const chalk = require("chalk");
+const fs = require("fs");
+const path = require("path");
 
 class EGPlugin {
   constructor(serverless, options) {
@@ -121,7 +123,20 @@ class EGPlugin {
           );
         }
 
+        const stateDataFilePath = path.join(process.cwd(), '.egstate.json');
+        let stateData = { functions: [], subscriptions: [] };
+        if (fs.existsSync(stateDataFilePath)) {
+          stateData = JSON.parse(fs.readFileSync(stateDataFilePath))
+        }
+
         process.env.EVENT_GATEWAY_TOKEN = config.apikey;
+
+        while(stateData.functions.length) {
+          eg.deleteFunction({ functionId: stateData.functions.pop() })
+        }
+        while(stateData.subscriptions.length) {
+          eg.unsubscribe({ subscriptionId: stateData.subscriptions.pop() })
+        }
 
         this.filterFunctionsWithEvents().map(name => {
           const outputKey = this.awsProvider.naming.getLambdaVersionOutputLogicalId(
@@ -145,6 +160,8 @@ class EGPlugin {
               }
             })
             .then(() => {
+              stateData.functions.push(functionId);
+
               this.serverless.cli.consoleLog(
                 `EventGateway: Function "${name}" registered.`
               );
@@ -164,11 +181,17 @@ class EGPlugin {
                   path: `/${config.subdomain}${path}`
                 };
 
-                if (event.event == "http") {
+                if (event.event === "http") {
                   subscribeEvent.method = event.method || "GET";
                 }
 
-                eg.subscribe(subscribeEvent);
+                eg.subscribe(subscribeEvent).then(subObj => {
+                  stateData.subscriptions.push(subObj['subscriptionId']);
+
+                  fs.writeFile(stateDataFilePath, JSON.stringify(stateData), (err) => {
+                    if (err) throw new Error(err);
+                  });
+                });
 
                 this.serverless.cli.consoleLog(
                   `EventGateway: Function "${name}" subscribed to "${
