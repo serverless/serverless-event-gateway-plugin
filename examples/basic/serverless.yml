@@ -14,7 +14,7 @@ custom:
     apikey: <your API key>
 
 plugins:
-  - serverless-event-gateway-plugin
+  - "@serverless/serverless-event-gateway-plugin"
 
 functions:
   hello:

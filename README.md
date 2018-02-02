@@ -29,7 +29,7 @@ Get an API key from someone on [the Serverless team](mailto:hello@serverless.com
 	    apikey: <yourkey>
 
 	plugins:
-	  - serverless-event-gateway-plugin
+	  - "@serverless/serverless-event-gateway-plugin"
 
 	provider:
 	  name: aws
