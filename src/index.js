@@ -65,6 +65,7 @@ class EGPlugin {
 
   getClient() {
     const config = this.getConfig();
+    process.env.EVENT_GATEWAY_TOKEN = config.apikey || process.env.EVENT_GATEWAY_TOKEN;
     if (!config) {
       throw new Error(
         "No Event Gateway configuration provided in serverless.yaml"
@@ -129,83 +130,88 @@ class EGPlugin {
           stateData = JSON.parse(fs.readFileSync(stateDataFilePath))
         }
 
-        process.env.EVENT_GATEWAY_TOKEN = config.apikey;
+        Promise.all(
+          stateData.subscriptions.map(sub => {
+            stateData.subscriptions.pop();
+            return eg.unsubscribe({ subscriptionId: sub })
+          })
+        ).then(() => Promise.all(
+          stateData.functions.map(func => {
+            stateData.functions.pop();
+            return eg.deleteFunction({ functionId: func })
+          })
+        )).then(() => Promise.all(
+          this.filterFunctionsWithEvents().map(name => {
+            const outputKey = this.awsProvider.naming.getLambdaVersionOutputLogicalId(
+              name
+            );
+            const arn = outputs[outputKey];
+            const functionId = crypto
+              .createHash("sha256", "utf8")
+              .update(arn)
+              .digest("hex");
 
-        while(stateData.functions.length) {
-          eg.deleteFunction({ functionId: stateData.functions.pop() })
-        }
-        while(stateData.subscriptions.length) {
-          eg.unsubscribe({ subscriptionId: stateData.subscriptions.pop() })
-        }
-
-        this.filterFunctionsWithEvents().map(name => {
-          const outputKey = this.awsProvider.naming.getLambdaVersionOutputLogicalId(
-            name
-          );
-          const arn = outputs[outputKey];
-          const functionId = crypto
-            .createHash("sha256", "utf8")
-            .update(arn)
-            .digest("hex");
-
-          eg
-            .registerFunction({
-              functionId: functionId,
-              provider: {
-                type: "awslambda",
-                arn: arn,
-                region: this.awsProvider.getRegion(),
-                awsAccessKeyId: outputs.EventGatewayUserAccessKey,
-                awsSecretAccessKey: outputs.EventGatewayUserSecretKey
-              }
-            })
-            .then(() => {
-              stateData.functions.push(functionId);
-
-              this.serverless.cli.consoleLog(
-                `EventGateway: Function "${name}" registered.`
-              );
-
-              const func = this.serverless.service.getFunction(name);
-              func.events.forEach(functionEvent => {
-                if (!functionEvent.eventgateway) return;
-
-                const event = functionEvent.eventgateway;
-                if (!event.event || !event.path) return;
-
-                const path =
-                  (event.path.startsWith("/") ? "" : "/") + event.path;
-                const subscribeEvent = {
-                  functionId,
-                  event: event.event,
-                  path: `/${config.subdomain}${path}`
-                };
-
-                if (event.event === "http") {
-                  subscribeEvent.method = event.method || "GET";
+            return eg
+              .registerFunction({
+                functionId: functionId,
+                provider: {
+                  type: "awslambda",
+                  arn: arn,
+                  region: this.awsProvider.getRegion(),
+                  awsAccessKeyId: outputs.EventGatewayUserAccessKey,
+                  awsSecretAccessKey: outputs.EventGatewayUserSecretKey
                 }
-
-                eg.subscribe(subscribeEvent).then(subObj => {
-                  stateData.subscriptions.push(subObj['subscriptionId']);
-
-                  fs.writeFile(stateDataFilePath, JSON.stringify(stateData), (err) => {
-                    if (err) throw new Error(err);
-                  });
-                });
+              })
+              .then(() => {
+                stateData.functions.push(functionId);
 
                 this.serverless.cli.consoleLog(
-                  `EventGateway: Function "${name}" subscribed to "${
-                    event.event
-                  }" event.`
+                  `EventGateway: Function "${name}" registered.`
                 );
-              });
 
-              this.serverless.cli.consoleLog("");
-              this.serverless.cli.consoleLog(
-                `EventGateway: Endpoint URL: ${config.eventsAPI}`
-              );
-            });
-        });
+                const func = this.serverless.service.getFunction(name);
+                return Promise.all(
+                  func.events.map(functionEvent => {
+                    if (!functionEvent.eventgateway) return;
+
+                    const event = functionEvent.eventgateway;
+                    if (!event.event || !event.path) return;
+
+                    const path =
+                      (event.path.startsWith("/") ? "" : "/") + event.path;
+                    const subscribeEvent = {
+                      functionId,
+                      event: event.event,
+                      path: `/${config.subdomain}${path}`
+                    };
+
+                    if (event.event === "http") {
+                      subscribeEvent.method = event.method || "GET";
+                    }
+
+                    return eg.subscribe(subscribeEvent).then(subObj => {
+                      stateData.subscriptions.push(subObj['subscriptionId']);
+
+                      this.serverless.cli.consoleLog(
+                        `EventGateway: Function "${name}" subscribed to "${
+                          event.event
+                          }" event.`
+                      );
+
+                      fs.writeFile(stateDataFilePath, JSON.stringify(stateData), (err) => {
+                        if (err) throw new Error(err);
+                      });
+                    });
+                  })
+                ).then(() => {
+                  this.serverless.cli.consoleLog("");
+                  this.serverless.cli.consoleLog(
+                    `EventGateway: Endpoint URL: ${config.eventsAPI}`
+                  );
+                });
+              });
+          })
+        ));
       });
   }
 
