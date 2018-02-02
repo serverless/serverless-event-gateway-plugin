@@ -21,6 +21,5 @@ functions:
     handler: index.handler
     events:
       - eventgateway:
-          event: http
+          event: user.created
           path: /
-          method: GET
