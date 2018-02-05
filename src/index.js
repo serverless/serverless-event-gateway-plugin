@@ -171,7 +171,7 @@ class EGPlugin {
                 state.functions.push(functionId);
 
                 this.serverless.cli.consoleLog(
-                  `EventGateway: Function "${name}" registered.`
+                  `EventGateway: Function "${name}" registered. (ID: ${functionId})`
                 );
 
                 const func = this.serverless.service.getFunction(name);
