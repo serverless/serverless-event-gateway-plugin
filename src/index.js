@@ -191,7 +191,8 @@ class EGPlugin {
                     const subscribeEvent = {
                       functionId,
                       event: event.event,
-                      path: `/${config.subdomain}${path}`
+                      path: `/${config.subdomain}${path}`,
+                      cors: event.cors
                     };
 
                     if (event.event === "http") {
