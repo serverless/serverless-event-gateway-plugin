@@ -10,7 +10,7 @@ This example shows how to build simple HTTP REST endpoint.
 git clone git@github.com:serverless/serverless-event-gateway-plugin.git
 ```
 
-2. Change directory to basic example
+2. Change directory to REST example
 
 ```
 cd serverless-event-gateway-plugin/examples/http-rest
@@ -40,12 +40,12 @@ serverless deploy
 6. `curl` the endpoint with different HTTP methods
 
 ```
-$ curl -X POST https://serverless.eventgateway-dev.io/rest/10
+$ curl -X POST https://<subdomain>.eventgateway-dev.io/rest/10
 POST resource with id: 10
 
-$ curl -X GET https://serverless.eventgateway-dev.io/rest/10
+$ curl -X GET https://<subdomain>.eventgateway-dev.io/rest/10
 GET resource with id: 10
 
-$ curl -X DELETE https://serverless.eventgateway-dev.io/rest/10
+$ curl -X DELETE https://<subdomain>.eventgateway-dev.io/rest/10
 DELETE resource with id: 10
 ```

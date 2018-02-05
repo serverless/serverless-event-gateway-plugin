@@ -1,0 +1,32 @@
+service: eg-example-http-rest
+provider:
+  name: aws
+  runtime: nodejs4.3
+  region: us-east-1
+
+package:
+  exclude:
+    - node_modules/**
+    - .egstate.json
+
+custom:
+  eventgateway:
+    subdomain: <your subdomain>
+    apikey: <your API key>
+
+plugins:
+  - "@serverless/serverless-event-gateway-plugin"
+
+functions:
+  get:
+    handler: index.get
+    events:
+      - eventgateway:
+          event: http
+          method: GET
+          path: /rest
+          cors:
+            origins:
+              - https://*.eventgateway-dev.io
+            methods:
+              - GET
