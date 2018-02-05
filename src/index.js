@@ -7,6 +7,8 @@ const chalk = require("chalk");
 const fs = require("fs");
 const path = require("path");
 
+const STATE_PATH = path.join(process.cwd(), '.egstate.json');
+
 class EGPlugin {
   constructor(serverless, options) {
     this.serverless = serverless;
@@ -38,12 +40,6 @@ class EGPlugin {
         }
       }
     };
-
-    this.stateDataFilePath = path.join(process.cwd(), '.egstate.json');
-    this.state = { functions: [], subscriptions: [] };
-    if (fs.existsSync(this.stateDataFilePath)) {
-      this.state = JSON.parse(fs.readFileSync(this.stateDataFilePath))
-    }
   }
 
   emitEvent() {
@@ -130,18 +126,23 @@ class EGPlugin {
           );
         }
 
+        let state = { functions: [], subscriptions: [] };
+        if (fs.existsSync(STATE_PATH)) {
+          state = JSON.parse(fs.readFileSync(STATE_PATH))
+        }
+
         Promise.all(
-          this.state.subscriptions.map(sub => {
+          state.subscriptions.map(sub => {
             return eg.unsubscribe({ subscriptionId: sub }).then(() => {
-              this.state.subscriptions.pop();
-              this.saveState();
+              state.subscriptions.pop();
+              return saveState(state);
             })
           })
         ).then(() => Promise.all(
-          this.state.functions.map(func => {
+          state.functions.map(func => {
             return eg.deleteFunction({ functionId: func }).then(() => {
-              this.state.functions.pop();
-              this.saveState();
+              state.functions.pop();
+              return saveState(state);
             })
           })
         )).then(() => Promise.all(
@@ -167,23 +168,26 @@ class EGPlugin {
                 }
               })
               .then(() => {
-                this.state.functions.push(functionId);
-                this.saveState();
+                state.functions.push(functionId);
 
                 this.serverless.cli.consoleLog(
                   `EventGateway: Function "${name}" registered.`
                 );
 
                 const func = this.serverless.service.getFunction(name);
-                return Promise.all(
+
+                return saveState(state).then(() => Promise.all(
                   func.events.map(functionEvent => {
                     if (!functionEvent.eventgateway) return;
 
                     const event = functionEvent.eventgateway;
-                    if (!event.event || !event.path) return;
+                    if (!event.event) return;
 
-                    const path =
-                      (event.path.startsWith("/") ? "" : "/") + event.path;
+                    let path = event.path || "/";
+                    if (!path.startsWith("/")) {
+                      path = "/" + path
+                    }
+
                     const subscribeEvent = {
                       functionId,
                       event: event.event,
@@ -195,17 +199,18 @@ class EGPlugin {
                     }
 
                     return eg.subscribe(subscribeEvent).then(subscription => {
-                      this.state.subscriptions.push(subscription.subscriptionId);
-                      this.saveState();
+                      state.subscriptions.push(subscription.subscriptionId);
 
                       this.serverless.cli.consoleLog(
                         `EventGateway: Function "${name}" subscribed to "${
                           event.event
                           }" event.`
                       );
+
+                      return saveState(state);
                     });
                   })
-                );
+                ))
               });
           })
         ))
@@ -298,10 +303,15 @@ class EGPlugin {
       }
     );
   }
+}
 
-  saveState() {
-    fs.writeFileSync(this.stateDataFilePath, JSON.stringify(this.state));
-  }
+function saveState(state) {
+  return new Promise(function(resolve, reject) {
+    fs.writeFile(STATE_PATH, JSON.stringify(state), (err) => {
+      if (err) reject(err);
+      resolve();
+    });
+  });
 }
 
 module.exports = EGPlugin;

@@ -22,4 +22,3 @@ functions:
     events:
       - eventgateway:
           event: user.created
-          path: /
