@@ -1,4 +1,4 @@
-service: eg-example-basic
+service: eg-example-func-to-func
 provider:
   name: aws
   runtime: nodejs4.3
@@ -18,8 +18,15 @@ plugins:
   - "@serverless/serverless-event-gateway-plugin"
 
 functions:
-  hello:
-    handler: index.handler
+  frontend:
+    handler: functions/frontend.frontend
     events:
       - eventgateway:
-          event: user.created
+          event: http
+          method: GET
+          path: /frontend
+  backend:
+    handler: functions/backend.backend
+    events:
+      - eventgateway:
+          event: invoke
