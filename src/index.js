@@ -150,7 +150,9 @@ class EGPlugin {
             const outputKey = this.awsProvider.naming.getLambdaVersionOutputLogicalId(
               name
             );
-            const arn = outputs[outputKey];
+            const fullArn = outputs[outputKey];
+            // Remove the function version from the ARN so that it always uses the latest version.
+            const arn = fullArn.split(':').slice(0,7).join(':')
             const functionId = crypto
               .createHash("sha256", "utf8")
               .update(arn)
