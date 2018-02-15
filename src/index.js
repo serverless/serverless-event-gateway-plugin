@@ -54,7 +54,7 @@ class EGPlugin {
           chalk.yellow(` ${this.options.event}`)
       );
       this.serverless.cli.consoleLog(
-          chalk.yellow("Run sls logs -f <functionName> to verify your subscribed function was triggered.")
+          chalk.yellow("Run `serverless logs -f <functionName>` to verify your subscribed function was triggered.")
       );
     });
   }
