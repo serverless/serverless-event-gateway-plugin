@@ -48,6 +48,14 @@ class EGPlugin {
     eg.emit({
       event: this.options.event,
       data: JSON.parse(this.options.data)
+    }).then(() => {
+      this.serverless.cli.consoleLog(
+          chalk.yellow.underline("Event emitted:") +
+          chalk.yellow(` ${this.options.event}`)
+      );
+      this.serverless.cli.consoleLog(
+          chalk.yellow("Run sls logs -f <functionName> to verify your subscribed function was triggered.")
+      );
     });
   }
 
