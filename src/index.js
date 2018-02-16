@@ -257,6 +257,14 @@ class EGPlugin {
   }
 
   addUserDefinition() {
+    const resources = this.filterFunctionsWithEvents().map(name => {
+      return {
+        "Fn::GetAtt": [
+          this.awsProvider.naming.getLambdaLogicalId(name),
+          "Arn"
+        ]
+      };
+    });
     merge(
       this.serverless.service.provider.compiledCloudFormationTemplate.Resources,
       {
@@ -274,7 +282,7 @@ class EGPlugin {
                 {
                   Effect: "Allow",
                   Action: ["lambda:InvokeFunction"],
-                  Resource: "*"
+                  Resource: resources
                 }
               ]
             },
