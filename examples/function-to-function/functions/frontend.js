@@ -1,7 +1,7 @@
 "use script";
 
-var fdk = require("@serverless/fdk");
-var eventGateway = fdk.eventGateway({
+var SDK = require("@serverless/event-gateway-sdk");
+var eventGateway = new SDK({
   url: 'https://<subdomain>.eventgateway-dev.io',
 });
 
