@@ -7,7 +7,6 @@ provider:
 package:
   exclude:
     - node_modules/**
-    - .egstate.json
 
 custom:
   eventgateway:
