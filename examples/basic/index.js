@@ -1,7 +1,7 @@
-"use script";
+'use script'
 
 module.exports.handler = (event, context, cb) => {
-  console.log(event);
+  console.log(event)
 
-  cb(null, { message: "success" });
-};
+  cb(null, { message: 'success' })
+}
