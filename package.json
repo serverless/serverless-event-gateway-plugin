@@ -11,7 +11,7 @@
     "type": "git"
   },
   "dependencies": {
-    "@serverless/event-gateway-sdk": "^0.1.0",
+    "@serverless/event-gateway-sdk": "^0.2.0",
     "await-to-js": "^2.0.1",
     "chalk": "^2.3.0",
     "lodash.merge": "^4.6.0"

@@ -71,7 +71,6 @@ class EGPlugin {
 
   getClient() {
     const config = this.getConfig();
-    process.env.EVENT_GATEWAY_TOKEN = config.apikey || process.env.EVENT_GATEWAY_TOKEN;
     if (!config) {
       throw new Error(
         "No Event Gateway configuration provided in serverless.yaml"
@@ -91,9 +90,10 @@ class EGPlugin {
     }
 
     return new SDK({
-      url: "http://localhost:4000",
-      configurationUrl: "http://localhost:8080",
+      url: config.eventsAPI,
+      configurationUrl: config.configurationAPI,
       space: config.subdomain,
+      apikey: config.apikey
     });
   }
 
@@ -120,6 +120,11 @@ class EGPlugin {
     const stack = data.Stacks.pop();
     if (!stack) {
       throw new Error("Unable to fetch CloudFormation stack information.");
+    }
+
+    const localFunctions = this.filterFunctionsWithEvents()
+    if (localFunctions.length === 0) {
+      return
     }
 
     const outputs = this.parseOutputs(stack);
@@ -247,6 +252,11 @@ class EGPlugin {
         ]
       };
     });
+
+    if (resources.length === 0) {
+      return
+    }
+
     merge(
       this.serverless.service.provider.compiledCloudFormationTemplate.Resources,
       {
