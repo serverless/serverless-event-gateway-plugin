@@ -59,8 +59,8 @@ class EGPlugin {
   getConfig () {
     if (this.serverless.service.custom && this.serverless.service.custom.eventgateway) {
       const config = this.serverless.service.custom.eventgateway
-      config.eventsAPI = `https://${config.subdomain}.eventgateway-dev.io`
-      config.configurationAPI = 'https://config.eventgateway-dev.io/'
+      config.eventsAPI = config.eventsAPI || `https://${config.subdomain}.eventgateway-dev.io`
+      config.configurationAPI = config.configurationAPI || 'https://config.eventgateway-dev.io'
       return config
     }
 

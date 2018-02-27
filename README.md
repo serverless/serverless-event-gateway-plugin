@@ -27,6 +27,9 @@ Get an API key from someone on [the Serverless team](mailto:hello@serverless.com
 	  eventgateway:
 	    subdomain: <your-subdomain>
 	    apikey: <yourkey>
+	  # To use self-hosted Event Gateway, use the following
+	  #  eventsAPI: http://localhost:4000
+	  #  configurationAPI: http://localhost:4001
 
 	plugins:
 	  - "@serverless/serverless-event-gateway-plugin"
