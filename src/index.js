@@ -15,8 +15,7 @@ class EGPlugin {
     this.hooks = {
       'package:compileEvents': this.addUserDefinition.bind(this),
       'after:deploy:finalize': this.configureEventGateway.bind(this),
-      'emitremote:emit': this.emitEvent.bind(this),
-      'remove:remove': this.remove.bind(this)
+      'emitremote:emit': this.emitEvent.bind(this)
     }
 
     this.commands = {
@@ -55,22 +54,6 @@ class EGPlugin {
           chalk.yellow('Run `serverless logs -f <functionName>` to verify your subscribed function was triggered.')
         )
       })
-  }
-
-  async remove () {
-    const eg = this.getClient()
-
-    const subscriptions = await eg.listSubscriptions()
-    if (subscriptions instanceof Array && subscriptions.length) {
-      const unsubList = subscriptions.map(sub => eg.unsubscribe({ subscriptionId: sub.subscriptionId }))
-      await Promise.all(unsubList)
-    }
-
-    const functions = await eg.listFunctions()
-    if (functions instanceof Array && functions.length) {
-      const deleteList = functions.map(func => eg.deleteFunction({ functionId: func.functionId }))
-      await Promise.all(deleteList)
-    }
   }
 
   getConfig () {
