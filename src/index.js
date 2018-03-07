@@ -163,9 +163,9 @@ class EGPlugin {
       )
     }
 
-    if (!config.apikey) {
+    if (!config.apiKey) {
       throw new Error(
-        'Required "apikey" property is missing from Event Gateway configuration provided in serverless.yaml'
+        'Required "apiKey" property is missing from Event Gateway configuration provided in serverless.yaml'
       )
     }
 
@@ -173,7 +173,7 @@ class EGPlugin {
       url: config.eventsAPI,
       configurationUrl: config.configurationAPI,
       space: config.subdomain,
-      apikey: config.apikey
+      apiKey: config.apiKey
     })
   }
 

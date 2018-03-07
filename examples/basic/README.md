@@ -28,7 +28,7 @@ npm install
 custom:
   eventgateway:
     subdomain: <your subdomain>
-    apikey: <your API key>
+    apiKey: <your API key>
 ```
 
 5. Deploy service
@@ -40,7 +40,7 @@ serverless deploy
 6. Emit custom event
 
 ```
-serverless emitremote -e user.created -d '{"username": "bob"}'
+serverless gateway emit -e user.created -d '{"username": "bob"}'
 ```
 
 7. Now, your function will be invoke by Event Gateway. You can inspect the event with CloudWatch in AWS console or `serverless logs` command.

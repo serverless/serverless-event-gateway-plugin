@@ -28,7 +28,7 @@ npm install
 custom:
   eventgateway:
     subdomain: <your subdomain>
-    apikey: <your API key>
+    apiKey: <your API key>
 ```
 
 5. Deploy service

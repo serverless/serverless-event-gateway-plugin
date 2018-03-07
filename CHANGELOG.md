@@ -1,4 +1,18 @@
 
+0.2.0 / 2018-03-07
+==================
+
+BACKWARDS INCOMPATIBILITIES:
+
+  * Changed `apikey` to `apiKey` in `serverles.yml` config.
+  * `serverless emitremote` changed to `serverless gateway emit`
+
+IMPROVEMENTS:
+
+  * Add `serverless gateway dashboard` command to view space configuration.
+  * bump SDK version (#22)
+  * Add options to specify URL endpoints
+
 0.1.0 / 2018-02-21
 ==================
 
