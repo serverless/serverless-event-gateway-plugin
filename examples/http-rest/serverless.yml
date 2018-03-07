@@ -1,12 +1,8 @@
-service: eg-example-http-rest
+service: eg-users-example
 provider:
   name: aws
   runtime: nodejs4.3
   region: us-east-1
-
-package:
-  exclude:
-    - node_modules/**
 
 custom:
   eventgateway:
@@ -17,24 +13,24 @@ plugins:
   - "@serverless/serverless-event-gateway-plugin"
 
 functions:
-  get:
+  getUser:
     handler: index.get
     events:
       - eventgateway:
           event: http
           method: GET
-          path: /rest/:id
-  post:
+          path: /users/:id
+  createUser:
     handler: index.post
     events:
       - eventgateway:
           event: http
-          path: /rest/:id
+          path: /users/:id
           method: POST
-  delete:
+  deleteUser:
     handler: index.delete
     events:
       - eventgateway:
           event: http
-          path: /rest/:id
+          path: /users/:id
           method: DELETE

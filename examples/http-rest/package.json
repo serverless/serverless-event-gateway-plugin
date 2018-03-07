@@ -1,5 +1,8 @@
 {
   "devDependencies": {
     "@serverless/serverless-event-gateway-plugin": "0.1.1"
+  },
+  "dependencies": {
+    "faker": "^4.1.0"
   }
 }
