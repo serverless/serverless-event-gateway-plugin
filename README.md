@@ -65,6 +65,35 @@ Get an API key from someone on [the Serverless team](mailto:hello@serverless.com
 	$ curl -X GET https://<your-subdomain>.eventgateway-dev.io
 	```
 
+6. View your space configuration with `sls gateway dashboard`:
+
+    ```bash
+    $ sls gateway dashboard
+
+    Event Gateway
+
+     space: myspace 
+     endpoint: https://myspace.eventgateway-dev.io
+
+    Functions
+    ┌─────────────────────────────────┬───────────┬────────────────────────────────────────────────────────────────────────────────┐
+    │ Function Id                     │ Region    │ ARN                                                                            │
+    ├─────────────────────────────────┼───────────┼────────────────────────────────────────────────────────────────────────────────┤
+    │ my-service-hello-world          │ us-east-1 │ arn:aws:lambda:us-east-1:111111111111:function:my-service-hello-world          │
+    ├─────────────────────────────────┼───────────┼────────────────────────────────────────────────────────────────────────────────┤
+    │ my-service-goodbye-world        │ us-east-1 │ arn:aws:lambda:us-east-1:111111111111:function:my-service-goodbye-world        │
+    └─────────────────────────────────┴───────────┴────────────────────────────────────────────────────────────────────────────────┘
+
+    Subscriptions
+    ┌────────┬─────────────────────────────────┬────────┬───────────────────────┐
+    │ Event  │ Function ID                     │ Method │ Path                  │
+    ├────────┼─────────────────────────────────┼────────┼───────────────────────┤
+    │ http   │ my-service-hello-world          │ POST   │ /myspace/hello        │
+    ├────────┼─────────────────────────────────┼────────┼───────────────────────┤
+    │ http   │ my-service-goodbye-world        │ POST   │ /myspace/goodbye      │
+    └────────┴─────────────────────────────────┴────────┴───────────────────────┘
+    ```
+
 
 ## Concepts
 

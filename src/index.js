@@ -4,6 +4,8 @@ const merge = require('lodash.merge')
 const SDK = require('@serverless/event-gateway-sdk')
 const chalk = require('chalk')
 const to = require('await-to-js').to
+const Table = require('cli-table')
+const BbPromise = require('bluebird')
 
 class EGPlugin {
   constructor (serverless, options) {
@@ -15,23 +17,38 @@ class EGPlugin {
     this.hooks = {
       'package:compileEvents': this.addUserDefinition.bind(this),
       'after:deploy:finalize': this.configureEventGateway.bind(this),
-      'emitremote:emit': this.emitEvent.bind(this)
+      'gateway:gateway': () => {
+        this.serverless.cli.generateCommandsHelp(['gateway'])
+        return BbPromise.resolve()
+      },
+      'gateway:emit:emit': this.emitEvent.bind(this),
+      'gateway:dashboard:dashboard': this.printDashboard.bind(this)
     }
 
     this.commands = {
-      emitremote: {
-        usage: 'Emit event to hosted Event Gateway',
-        lifecycleEvents: ['emit'],
-        options: {
-          event: {
-            usage: 'Event you want to emit',
-            required: true,
-            shortcut: 'e'
+      gateway: {
+        usage: 'Interact with the Event Gateway',
+        lifecycleEvents: ['gateway'],
+        commands: {
+          emit: {
+            usage: 'Emit event to hosted Event Gateway',
+            lifecycleEvents: ['emit'],
+            options: {
+              event: {
+                usage: 'Event you want to emit',
+                required: true,
+                shortcut: 'e'
+              },
+              data: {
+                usage: 'Data for the event you want to emit',
+                required: true,
+                shortcut: 'd'
+              }
+            }
           },
-          data: {
-            usage: 'Data for the event you want to emit',
-            required: true,
-            shortcut: 'd'
+          dashboard: {
+            usage: 'Show functions and subscriptions in Space for Event Gateway',
+            lifecycleEvents: ['dashboard']
           }
         }
       }
@@ -53,6 +70,73 @@ class EGPlugin {
         this.serverless.cli.consoleLog(
           chalk.yellow('Run `serverless logs -f <functionName>` to verify your subscribed function was triggered.')
         )
+      })
+  }
+
+  printDashboard () {
+    this.serverless.cli.consoleLog('')
+    this.printGatewayInfo()
+    this.printFunctions()
+      .then(() => this.printSubscriptions())
+  }
+
+  printGatewayInfo () {
+    const space = this.getConfig().subdomain
+    const eventsAPI = this.getConfig().eventsAPI
+    this.serverless.cli.consoleLog(
+      chalk.bold('Event Gateway')
+    )
+    this.serverless.cli.consoleLog('')
+    this.serverless.cli.consoleLog(
+      ` space: ${space}`
+    )
+    this.serverless.cli.consoleLog(
+      ` endpoint: ${eventsAPI}`
+    )
+    this.serverless.cli.consoleLog('')
+  }
+
+  printFunctions () {
+    const eg = this.getClient()
+
+    return eg
+      .listFunctions()
+      .then((functions) => {
+        var table = new Table({
+          head: ['Function Id', 'Region', 'ARN'],
+          style: { head: ['bold'] }
+        })
+        functions.forEach((f) => {
+          table.push([f.functionId || '', f.provider.region || '', f.provider.arn || ''])
+        })
+        this.serverless.cli.consoleLog(
+          chalk.bold('Functions')
+        )
+        this.serverless.cli.consoleLog(table.toString())
+        this.serverless.cli.consoleLog('')
+        return BbPromise.resolve()
+      })
+  }
+
+  printSubscriptions () {
+    const eg = this.getClient()
+
+    return eg
+      .listSubscriptions()
+      .then((subscriptions) => {
+        var table = new Table({
+          head: ['Event', 'Function ID', 'Method', 'Path'],
+          style: { head: ['bold'] }
+        })
+        subscriptions.forEach((s) => {
+          table.push([s.event || '', s.functionId || '', s.method || '', s.path || ''])
+        })
+        this.serverless.cli.consoleLog(
+          chalk.bold('Subscriptions')
+        )
+        this.serverless.cli.consoleLog(table.toString())
+        this.serverless.cli.consoleLog('')
+        return BbPromise.resolve()
       })
   }
 
