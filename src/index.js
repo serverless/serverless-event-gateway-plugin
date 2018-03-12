@@ -5,7 +5,6 @@ const SDK = require('@serverless/event-gateway-sdk')
 const chalk = require('chalk')
 const to = require('await-to-js').to
 const Table = require('cli-table')
-const BbPromise = require('bluebird')
 
 class EGPlugin {
   constructor (serverless, options) {
@@ -20,7 +19,6 @@ class EGPlugin {
       'remove:remove': this.remove.bind(this),
       'gateway:gateway': () => {
         this.serverless.cli.generateCommandsHelp(['gateway'])
-        return BbPromise.resolve()
       },
       'gateway:emit:emit': this.emitEvent.bind(this),
       'gateway:dashboard:dashboard': this.printDashboard.bind(this)
@@ -127,7 +125,7 @@ class EGPlugin {
       .listFunctions()
       .then((functions) => {
         var table = new Table({
-          head: ['Function Id', 'Region', 'ARN'],
+          head: ['Function ID', 'Region', 'ARN'],
           style: { head: ['bold'] }
         })
         functions.forEach((f) => {
@@ -138,7 +136,6 @@ class EGPlugin {
         )
         this.serverless.cli.consoleLog(table.toString())
         this.serverless.cli.consoleLog('')
-        return BbPromise.resolve()
       })
   }
 
@@ -160,7 +157,6 @@ class EGPlugin {
         )
         this.serverless.cli.consoleLog(table.toString())
         this.serverless.cli.consoleLog('')
-        return BbPromise.resolve()
       })
   }
 
