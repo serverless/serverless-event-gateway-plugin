@@ -265,7 +265,7 @@ class EGPlugin {
           awsSecretAccessKey: outputs.EventGatewayUserSecretKey
         }
       }
-      const functionEvents = this.serverless.service.getFunction(name).events
+      const functionEvents = this.serverless.service.getFunction(name).events.filter(f => f.eventgateway !== undefined)
 
       const registeredFunction = functions.find(f => f.functionId === functionId)
       if (!registeredFunction) {
