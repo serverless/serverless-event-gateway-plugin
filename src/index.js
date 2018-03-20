@@ -269,8 +269,8 @@ class EGPlugin {
       const functionId = fullArn.split(':')[6]
       const fn = {
         functionId: functionId,
+        type: 'awslambda',
         provider: {
-          type: 'awslambda',
           arn: arn,
           region: this.awsProvider.getRegion(),
           awsAccessKeyId: outputs.EventGatewayUserAccessKey,
