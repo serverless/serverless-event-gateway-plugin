@@ -56,9 +56,12 @@ class EGPlugin {
 
   async getServiceFunctions () {
     const eg = this.getClient()
-    const [err, functions] = await to(eg.listFunctions())
-    if (err) {
-      throw new Error(err)
+    let functions = []
+    let err
+    let result
+    ;[err, result] = await to(eg.listFunctions())
+    if (!err) {
+      functions = result
     }
     return functions.filter(
       f => f.functionId.startsWith(`${this.serverless.service.service}-${this.awsProvider.getStage()}`)
@@ -67,9 +70,12 @@ class EGPlugin {
 
   async getServiceSubscriptions () {
     const eg = this.getClient()
-    const [err, subscriptions] = await to(eg.listSubscriptions())
-    if (err) {
-      throw new Error(err)
+    let subscriptions = []
+    let err
+    let result
+    ;[err, result] = await to(eg.listSubscriptions())
+    if (!err) {
+      subscriptions = result
     }
     return subscriptions.filter(
       s => s.functionId.startsWith(`${this.serverless.service.service}-${this.awsProvider.getStage()}`)
@@ -89,7 +95,9 @@ class EGPlugin {
           chalk.yellow.underline('Event emitted:') + chalk.yellow(` ${this.options.event}`)
         )
         this.serverless.cli.consoleLog(
-          chalk.yellow('Run `serverless logs -f <functionName>` to verify your subscribed function was triggered.')
+          chalk.yellow(
+            'Run `serverless logs -f <functionName>` to verify your subscribed function was triggered.'
+          )
         )
       })
   }
@@ -102,17 +110,23 @@ class EGPlugin {
 
     const subscriptions = await this.getServiceSubscriptions()
     if (subscriptions instanceof Array && subscriptions.length) {
-      const unsubList = subscriptions.map(sub => eg.unsubscribe({ subscriptionId: sub.subscriptionId }).then(() => {
-        this.serverless.cli.consoleLog(`EventGateway: Subscription "${sub.event}" removed from function: ${sub.functionId}`)
-      }))
+      const unsubList = subscriptions.map(sub =>
+        eg.unsubscribe({ subscriptionId: sub.subscriptionId }).then(() => {
+          this.serverless.cli.consoleLog(
+            `EventGateway: Subscription "${sub.event}" removed from function: ${sub.functionId}`
+          )
+        })
+      )
       await Promise.all(unsubList)
     }
 
     const functions = await this.getServiceFunctions()
     if (functions instanceof Array && functions.length) {
-      const deleteList = functions.map(func => eg.deleteFunction({ functionId: func.functionId }).then(() => {
-        this.serverless.cli.consoleLog(`EventGateway: Function "${func.functionId}" removed.`)
-      }))
+      const deleteList = functions.map(func =>
+        eg.deleteFunction({ functionId: func.functionId }).then(() => {
+          this.serverless.cli.consoleLog(`EventGateway: Function "${func.functionId}" removed.`)
+        })
+      )
       await Promise.all(deleteList)
     }
   }
@@ -120,29 +134,21 @@ class EGPlugin {
   printDashboard () {
     this.serverless.cli.consoleLog('')
     this.printGatewayInfo()
-    this.printFunctions()
-      .then(() => this.printSubscriptions())
+    this.printFunctions().then(() => this.printSubscriptions())
   }
 
   printGatewayInfo () {
     const space = this.getConfig().subdomain
     const eventsAPI = this.getConfig().eventsAPI
-    this.serverless.cli.consoleLog(
-      chalk.bold('Event Gateway')
-    )
+    this.serverless.cli.consoleLog(chalk.bold('Event Gateway'))
     this.serverless.cli.consoleLog('')
-    this.serverless.cli.consoleLog(
-      ` space: ${space}`
-    )
-    this.serverless.cli.consoleLog(
-      ` endpoint: ${eventsAPI}`
-    )
+    this.serverless.cli.consoleLog(` space: ${space}`)
+    this.serverless.cli.consoleLog(` endpoint: ${eventsAPI}`)
     this.serverless.cli.consoleLog('')
   }
 
   printFunctions () {
     const eg = this.getClient()
-
     return eg
       .listFunctions()
       .then((functions) => {
@@ -163,7 +169,6 @@ class EGPlugin {
 
   printSubscriptions () {
     const eg = this.getClient()
-
     return eg
       .listSubscriptions()
       .then((subscriptions) => {
@@ -185,8 +190,8 @@ class EGPlugin {
   getConfig () {
     if (this.serverless.service.custom && this.serverless.service.custom.eventgateway) {
       const config = this.serverless.service.custom.eventgateway
-      config.eventsAPI = config.eventsAPI || `https://${config.subdomain}.eventgateway-dev.io`
-      config.configurationAPI = config.configurationAPI || 'https://config.eventgateway-dev.io'
+      config.eventsAPI = config.eventsAPI || `https://${config.subdomain}.slsgateway.com`
+      config.configurationAPI = config.configurationAPI || 'https://config.slsgateway.com'
       return config
     }
 
@@ -282,11 +287,11 @@ class EGPlugin {
       const registeredFunction = functions.find(f => f.functionId === functionId)
       if (!registeredFunction) {
         // create function if doesn't exit
-        await registerFunction(fn)
+        await this.registerFunction(fn)
         this.serverless.cli.consoleLog(`EventGateway: Function "${name}" registered. (ID: ${fn.functionId})`)
 
         functionEvents.forEach(async event => {
-          await createSubscription(config, functionId, event.eventgateway)
+          await this.createSubscription(config, functionId, event.eventgateway)
           this.serverless.cli.consoleLog(
             `EventGateway: Function "${name}" subscribed to "${event.eventgateway.event}" event.`
           )
@@ -299,14 +304,13 @@ class EGPlugin {
         let existingSubscriptions = subscriptions.filter(s => s.functionId === functionId)
         functionEvents.forEach(async event => {
           event = event.eventgateway
-
           const existingSubscription = existingSubscriptions.find(
             s => s.event === event.event && s.method === event.method && s.path === eventPath(event, config.subdomain)
           )
 
           // create subscription as it doesn't exists
           if (!existingSubscription) {
-            await createSubscription(config, functionId, event)
+            await this.createSubscription(config, functionId, event)
             this.serverless.cli.consoleLog(`EventGateway: Function "${name}" subscribed to "${event.event}" event.`)
           } else {
             existingSubscriptions = existingSubscriptions.filter(
@@ -424,6 +428,35 @@ class EGPlugin {
       }
     })
   }
+
+  async registerFunction (fn) {
+    const eg = this.getClient()
+    let [err, result] = await to(eg.registerFunction(fn))
+    if (err) {
+      throw new Error(`Couldn't register a function ${fn.functionId}. ${err}.`)
+    }
+    return result
+  }
+
+  async createSubscription (config, functionId, event) {
+    const eg = this.getClient()
+    const subscribeEvent = {
+      functionId,
+      event: event.event,
+      path: eventPath(event, config.subdomain),
+      cors: event.cors
+    }
+
+    if (event.event === 'http') {
+      subscribeEvent.method = event.method.toUpperCase() || 'GET'
+    }
+
+    let [err, result] = await to(eg.subscribe(subscribeEvent))
+    if (err) {
+      throw new Error(`Couldn't create subscriptions for ${functionId}. ${err}.`)
+    }
+    return result
+  }
 }
 
 function eventPath (event, subdomain) {
@@ -434,35 +467,6 @@ function eventPath (event, subdomain) {
   }
 
   return `/${subdomain}${path}`
-}
-
-async function registerFunction (fn) {
-  const eg = this.getClient()
-  let [err, result] = await to(eg.registerFunction(fn))
-  if (err) {
-    throw new Error(`Couldn't register a function ${fn.functionId}. ${err}.`)
-  }
-  return result
-}
-
-async function createSubscription (config, functionId, event) {
-  const eg = this.getClient()
-  const subscribeEvent = {
-    functionId,
-    event: event.event,
-    path: eventPath(event, config.subdomain),
-    cors: event.cors
-  }
-
-  if (event.event === 'http') {
-    subscribeEvent.method = event.method.toUpperCase() || 'GET'
-  }
-
-  let [err, result] = await to(eg.subscribe(subscribeEvent))
-  if (err) {
-    throw new Error(`Couldn't create subscriptions for ${functionId}. ${err}.`)
-  }
-  return result
 }
 
 module.exports = EGPlugin
