@@ -1,7 +1,7 @@
-service: eg-users-example
+service: eg-users-service
 provider:
   name: aws
-  runtime: nodejs4.3
+  runtime: nodejs6.10
   region: us-east-1
 
 custom:
@@ -25,7 +25,7 @@ functions:
     events:
       - eventgateway:
           event: http
-          path: /users/:id
+          path: /users
           method: POST
   deleteUser:
     handler: index.delete

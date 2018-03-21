@@ -1,12 +1,9 @@
-service: eg-example-basic
+service: eg-crm-service
+
 provider:
   name: aws
-  runtime: nodejs4.3
+  runtime: nodejs6.10
   region: us-east-1
-
-package:
-  exclude:
-    - node_modules/**
 
 custom:
   eventgateway:
@@ -17,7 +14,7 @@ plugins:
   - "@serverless/serverless-event-gateway-plugin"
 
 functions:
-  hello:
+  addUserToCRM:
     handler: index.handler
     events:
       - eventgateway:

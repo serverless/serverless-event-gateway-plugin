@@ -24,7 +24,7 @@ module.exports.post = (event, context, cb) => {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      id: event.data.params.id,
+      id: faker.random.number(),
       name: faker.name.findName(),
       email: faker.internet.email()
     })
