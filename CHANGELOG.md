@@ -1,4 +1,18 @@
 
+0.3.0 / 2018-03-20
+==================
+
+BACKWARDS INCOMPATIBILITIES:
+
+  * Changed default domains to use `slsgateway.com` rather than `eventgateway-dev.io` (#36)
+  * Update `registerFunction` payload to match new Event Gateway format (#39)
+
+IMPROVEMENTS:
+
+  * Remove functions and subscriptions on `sls remove` (#30)
+  * Don't try to register events that aren't `eventgateway` (#35)
+  * Allow multiple services in the same space (#38)
+
 0.2.0 / 2018-03-07
 ==================
 
