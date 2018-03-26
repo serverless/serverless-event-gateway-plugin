@@ -28,11 +28,11 @@ Looking for some examples to get started?
 	```yml
 	# serverless.yml
 
-	service: my-service-name
+	service: my-service
 
 	custom:
 	  eventgateway:
-	    subdomain: <your-subdomain>
+	    subdomain: myspace  // any subdomain you choose 
 	    apiKey: <yourkey>
 	  # To use self-hosted Event Gateway, use the following
 	  #  eventsAPI: http://localhost:4000
@@ -60,17 +60,29 @@ Looking for some examples to get started?
 	    events:
 	      - eventgateway:
 	          event: http
-	          path: /
+	          path: /hello
 	          method: GET
+	  goodbye:
+	    handler: handler.goodbye
+	    events:
+	      - eventgateway:
+	          event: http
+	          path: /goodbye
+	          method: GET            
 	```
 
-5. Deploy, then invoke your function:
+5. Deploy, then invoke your function(s):
 
-	```bash
-	$ sls deploy
-	....
-	$ curl -X GET https://<your-subdomain>.slsgateway.com
-	```
+	  ```bash
+	  $ sls deploy
+    ....
+    
+	  $ curl -X GET https://myspace.slsgateway.com/hello
+    ...
+    
+    $ curl -X GET https://myspace.slsgateway.com/goodbye
+    ...
+	  ```
 
 6. View your space configuration with `sls gateway dashboard`:
 
@@ -86,18 +98,18 @@ Looking for some examples to get started?
     ┌─────────────────────────────────┬───────────┬────────────────────────────────────────────────────────────────────────────────┐
     │ Function Id                     │ Region    │ ARN                                                                            │
     ├─────────────────────────────────┼───────────┼────────────────────────────────────────────────────────────────────────────────┤
-    │ my-service-hello-world          │ us-east-1 │ arn:aws:lambda:us-east-1:111111111111:function:my-service-hello-world          │
+    │ my-service-dev-hello            │ us-east-1 │ arn:aws:lambda:us-east-1:111111111111:function:my-service-dev-hello            │
     ├─────────────────────────────────┼───────────┼────────────────────────────────────────────────────────────────────────────────┤
-    │ my-service-goodbye-world        │ us-east-1 │ arn:aws:lambda:us-east-1:111111111111:function:my-service-goodbye-world        │
+    │ my-service-dev-goodbye          │ us-east-1 │ arn:aws:lambda:us-east-1:111111111111:function:my-service-dev-goodbye          │
     └─────────────────────────────────┴───────────┴────────────────────────────────────────────────────────────────────────────────┘
 
     Subscriptions
     ┌────────┬─────────────────────────────────┬────────┬───────────────────────┐
     │ Event  │ Function ID                     │ Method │ Path                  │
     ├────────┼─────────────────────────────────┼────────┼───────────────────────┤
-    │ http   │ my-service-hello-world          │ POST   │ /myspace/hello        │
+    │ http   │ my-service-dev-hello            │ GET    │ /myspace/hello        │
     ├────────┼─────────────────────────────────┼────────┼───────────────────────┤
-    │ http   │ my-service-goodbye-world        │ POST   │ /myspace/goodbye      │
+    │ http   │ my-service-dev-goodbye          │ POST   │ /myspace/goodbye      │
     └────────┴─────────────────────────────────┴────────┴───────────────────────┘
     ```
 
