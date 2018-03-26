@@ -109,7 +109,7 @@ Looking for some examples to get started?
     ├────────┼─────────────────────────────────┼────────┼───────────────────────┤
     │ http   │ my-service-dev-hello            │ GET    │ /myspace/hello        │
     ├────────┼─────────────────────────────────┼────────┼───────────────────────┤
-    │ http   │ my-service-dev-goodbye          │ POST   │ /myspace/goodbye      │
+    │ http   │ my-service-dev-goodbye          │ GET    │ /myspace/goodbye      │
     └────────┴─────────────────────────────────┴────────┴───────────────────────┘
     ```
 
