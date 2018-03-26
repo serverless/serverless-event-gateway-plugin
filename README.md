@@ -17,7 +17,7 @@ Looking for some examples to get started?
 
 1. Create a new Serverless service and change into the directory.
 
-2. Install the plugin:
+2. Install the plugin: (needs Node version 7+)
 
 	```bash
 	$ npm install --save-dev @serverless/serverless-event-gateway-plugin
@@ -69,7 +69,7 @@ Looking for some examples to get started?
 	```bash
 	$ sls deploy
 	....
-	$ curl -X GET https://<your-subdomain>.eventgateway-dev.io
+	$ curl -X GET https://<your-subdomain>.slsgateway.com
 	```
 
 6. View your space configuration with `sls gateway dashboard`:
@@ -80,7 +80,7 @@ Looking for some examples to get started?
     Event Gateway
 
      space: myspace 
-     endpoint: https://myspace.eventgateway-dev.io
+     endpoint: https://myspace.slsgateway.com
 
     Functions
     ┌─────────────────────────────────┬───────────┬────────────────────────────────────────────────────────────────────────────────┐
