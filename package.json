@@ -4,7 +4,7 @@
   "main": "src/index.js",
   "scripts": {
     "lint": "eslint .",
-    "lint-fix": "eslint . --fix"
+    "test": "mocha"
   },
   "repository": {
     "url": "https://github.com/serverless/serverless-event-gateway-plugin",
@@ -18,17 +18,21 @@
     "lodash.merge": "^4.6.0"
   },
   "devDependencies": {
+    "chai": "^4.1.2",
+    "chai-as-promised": "^7.1.1",
     "eslint": "^4.18.0",
     "eslint-config-standard": "^11.0.0",
     "eslint-plugin-import": "^2.8.0",
     "eslint-plugin-node": "^6.0.0",
     "eslint-plugin-promise": "^3.6.0",
-    "eslint-plugin-standard": "^3.0.1"
+    "eslint-plugin-standard": "^3.0.1",
+    "mocha": "^5.0.5"
   },
   "eslintConfig": {
     "extends": "standard",
     "env": {
-      "node": true
+      "node": true,
+      "mocha": true
     },
     "rules": {
       "node/no-unsupported-features": "error"

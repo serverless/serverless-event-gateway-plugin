@@ -138,7 +138,7 @@ class EGPlugin {
   }
 
   printGatewayInfo () {
-    const space = this.getConfig().subdomain
+    const space = this.getConfig().space
     const eventsAPI = this.getConfig().eventsAPI
     this.serverless.cli.consoleLog(chalk.bold('Event Gateway'))
     this.serverless.cli.consoleLog('')
@@ -188,10 +188,22 @@ class EGPlugin {
   }
 
   getConfig () {
+    if (this.config) {
+      return this.config
+    }
     if (this.serverless.service.custom && this.serverless.service.custom.eventgateway) {
       const config = this.serverless.service.custom.eventgateway
-      config.eventsAPI = config.eventsAPI || `https://${config.subdomain}.slsgateway.com`
-      config.configurationAPI = config.configurationAPI || 'https://config.slsgateway.com'
+      if (config.subdomain !== undefined) {
+        throw new Error('The "subdomain" property in eventgateway config in serverless.yml is deprecated. Please use "space" instead.')
+      }
+      if (!config.eventsAPI && !config.configurationAPI) {
+        config.hosted = true
+        config.eventsAPI = `https://${config.space}.slsgateway.com`
+        config.configurationAPI = 'https://config.slsgateway.com'
+      } else {
+        config.hosted = false
+      }
+      this.config = config
       return config
     }
 
@@ -204,13 +216,13 @@ class EGPlugin {
       throw new Error('No Event Gateway configuration provided in serverless.yaml')
     }
 
-    if (!config.subdomain) {
+    if (!config.space) {
       throw new Error(
-        'Required "subdomain" property is missing from Event Gateway configuration provided in serverless.yaml'
+        'Required "space" property is missing from Event Gateway configuration provided in serverless.yaml'
       )
     }
 
-    if (!config.apiKey) {
+    if (!config.apiKey && config.hosted === true) {
       throw new Error(
         'Required "apiKey" property is missing from Event Gateway configuration provided in serverless.yaml'
       )
@@ -219,7 +231,7 @@ class EGPlugin {
     return new SDK({
       url: config.eventsAPI,
       configurationUrl: config.configurationAPI,
-      space: config.subdomain,
+      space: config.space,
       apiKey: config.apiKey
     })
   }
@@ -305,7 +317,7 @@ class EGPlugin {
         functionEvents.forEach(async event => {
           event = event.eventgateway
           const existingSubscription = existingSubscriptions.find(
-            s => s.event === event.event && s.method === event.method && s.path === eventPath(event, config.subdomain)
+            s => s.event === event.event && s.method === event.method && s.path === eventPath(event, config.space)
           )
 
           // create subscription as it doesn't exists
@@ -443,7 +455,7 @@ class EGPlugin {
     const subscribeEvent = {
       functionId,
       event: event.event,
-      path: eventPath(event, config.subdomain),
+      path: eventPath(event, config.space),
       cors: event.cors
     }
 
@@ -459,14 +471,14 @@ class EGPlugin {
   }
 }
 
-function eventPath (event, subdomain) {
+function eventPath (event, space) {
   let path = event.path || '/'
 
   if (!path.startsWith('/')) {
     path = '/' + path
   }
 
-  return `/${subdomain}${path}`
+  return `/${space}${path}`
 }
 
 module.exports = EGPlugin

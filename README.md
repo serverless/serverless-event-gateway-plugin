@@ -32,7 +32,7 @@ Looking for some examples to get started?
 
 	custom:
 	  eventgateway:
-	    subdomain: myspace  // any subdomain you choose 
+	    space: myspace  // any name you choose 
 	    apiKey: <yourkey>
 	  # To use self-hosted Event Gateway, use the following
 	  #  eventsAPI: http://localhost:4000
@@ -129,5 +129,5 @@ Looking for some examples to get started?
 
 **Auth concepts:**
 
-- **Subdomain:** A subdomain is a name-spacing mechanism within the Event Gateway. All functions and subscriptions in a subdomain are completely isolated from all other subdomains.
-- **API key:** The API key is the security mechanism for a subdomain. A subdomain belongs to one and only one API key, but an API can own multiple subdomains. A request must have the proper API key to modify functions and subscriptions in a subdomain.
+- **Space:** A space is a name-spacing mechanism within the Event Gateway. All functions and subscriptions in a space are completely isolated from all other spaces. When using with the hosted Event Gateway, your space will get its own subdomain at `https://<spaceName>.slsgateway.com`.
+- **API key:** The API key is the security mechanism for a space within the hosted Event Gateway. A space belongs to one and only one API key, but an API can own multiple spaces. A request must have the proper API key to modify functions and subscriptions in a space.
