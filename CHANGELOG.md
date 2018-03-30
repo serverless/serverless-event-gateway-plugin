@@ -1,4 +1,11 @@
 
+0.4.0 / 2018-03-30
+==================
+
+BACKWARDS INCOMPATIBILITIES:
+
+  * Changed `subdomain` to `space` in plugin configuration
+
 0.3.0 / 2018-03-20
 ==================
 

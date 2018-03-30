@@ -10,8 +10,8 @@ Get an API key from someone on [the Serverless team](mailto:hello@serverless.com
 
 Looking for some examples to get started?
 
-- To use custom events to allow for asynchronous, decoupled communication between services, check out [this example](./examples/crm-service) on updating your CRM service whenever a new user is created in your Users service.
-- For using Event Gateway as an API Gateway to tie together hundreds of functions across multiple services, look at [this example](./examples/users-service) for deploying a REST-like Users service with standard CRUD endpoints.
+- To use custom events to allow for asynchronous, decoupled communication between services, check out [this example](https://github.com/serverless/event-gateway/tree/master/examples/crm-service) on updating your CRM service whenever a new user is created in your Users service.
+- For using Event Gateway as an API Gateway to tie together hundreds of functions across multiple services, look at [this example](https://github.com/serverless/event-gateway/tree/master/examples/users-service) for deploying a REST-like Users service with standard CRUD endpoints.
 
 ## Usage
 
