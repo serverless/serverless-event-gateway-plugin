@@ -6,12 +6,9 @@ Serverless plugin that publishes your functions and subscriptions to Hosted Even
 
 Get an API key from someone on [the Serverless team](mailto:hello@serverless.com).
 
-## Examples
+## Example
 
-Looking for some examples to get started?
-
-- To use custom events to allow for asynchronous, decoupled communication between services, check out [this example](https://github.com/serverless/event-gateway/tree/master/examples/crm-service) on updating your CRM service whenever a new user is created in your Users service.
-- For using Event Gateway as an API Gateway to tie together hundreds of functions across multiple services, look at [this example](https://github.com/serverless/event-gateway/tree/master/examples/users-service) for deploying a REST-like Users service with standard CRUD endpoints.
+Looking for an example to get started? Check out the [**Getting Started Example**](https://github.com/serverless/event-gateway-getting-started) to deploy your first service to the Event Gateway.
 
 ## Usage
 
