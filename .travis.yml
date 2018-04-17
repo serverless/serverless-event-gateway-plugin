@@ -4,7 +4,8 @@ node_js:
 - 8
 script:
 - npm run lint
-- npm test
+- npx istanbul cover ./node_modules/mocha/bin/_mocha -- -R spec
+- npx codecov
 deploy:
   provider: npm
   email: services@serverless.com
