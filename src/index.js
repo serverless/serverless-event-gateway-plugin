@@ -1,5 +1,3 @@
-'use strict'
-
 const merge = require('lodash.merge')
 const SDK = require('@serverless/event-gateway-sdk')
 const chalk = require('chalk')
@@ -13,7 +11,12 @@ class EGPlugin {
 
     this.awsProvider = this.serverless.getProvider('aws')
 
+    this.requiredIAMPolicies = {}
+    this.connectorFunctions = {}
+    this.connectorFunctionsOutputs = {}
+
     this.hooks = {
+      'package:initialize': this.createConnectorFunctionDefinitions.bind(this),
       'package:compileEvents': this.addUserDefinition.bind(this),
       'after:deploy:finalize': this.configureEventGateway.bind(this),
       'remove:remove': this.remove.bind(this),
@@ -54,7 +57,64 @@ class EGPlugin {
     }
   }
 
-  async getServiceFunctions () {
+  createConnectorFunctionDefinitions () {
+    const functions = this.serverless.service.functions
+    for (let name in functions) {
+      if (!functions.hasOwnProperty(name) || !functions[name].type) continue
+      const func = (this.connectorFunctions[name] = functions[name])
+
+      if (!func.inputs) throw new Error(`No inputs provided for ${func.type} function "${name}".`)
+
+      if (!['awsfirehose', 'awskinesis', 'awssqs'].includes(func.type)) {
+        throw new Error(`Unrecognised type "${func.type}" for function "${name}"`)
+      }
+
+      const {resourceName, action} = this.connectorFunctionNames(name, func.type)
+      if (
+        !(
+          func.inputs.hasOwnProperty('logicalId') ||
+          (func.inputs.hasOwnProperty('arn') && func.inputs.hasOwnProperty(resourceName))
+        )
+      ) {
+        throw new Error(
+          `Invalid inputs for ${func.type} function "${name}". ` +
+          `You provided ${Object.keys(func.inputs).length ? Object.keys(func.inputs).map(i => `"${i}"`).join(', ') : 'none'}. ` +
+          `Please provide either "logicalId" or both "arn" and "${resourceName}" inputs.`
+        )
+      }
+
+      if (func.inputs.hasOwnProperty('logicalId')) {
+        if (!this.serverless.service.resources.Resources.hasOwnProperty(func.inputs.logicalId)) {
+          throw new Error(`Could not find resource "${func.inputs.logicalId}" in "resources" block for "${name}" function.`)
+        }
+        this.requiredIAMPolicies[func.inputs.logicalId] = {
+          Effect: 'Allow',
+          Action: [action],
+          Resource: { 'Fn::GetAtt': [func.inputs.logicalId, 'Arn'] }
+        }
+        this.connectorFunctionsOutputs = Object.assign(
+          this.connectorFunctionsOutputs,
+          this.connectorFunctionOutput(name, func.type, { logicalId: func.inputs.logicalId })
+        )
+      } else if (func.inputs.hasOwnProperty('arn')) {
+        this.requiredIAMPolicies[func.inputs.arn] = {
+          Effect: 'Allow',
+          Action: [action],
+          Resource: func.inputs.arn
+        }
+        this.connectorFunctionsOutputs = Object.assign(
+          this.connectorFunctionsOutputs,
+          this.connectorFunctionOutput(name, func.type, { arn: func.inputs.arn })
+        )
+      }
+
+      delete functions[name]
+    }
+
+    this.serverless.service.functions = functions
+  }
+
+  async getEGServiceFunctions () {
     const eg = this.getClient()
     let functions = []
     let err
@@ -63,12 +123,12 @@ class EGPlugin {
     if (!err) {
       functions = result
     }
-    return functions.filter(
-      f => f.functionId.startsWith(`${this.serverless.service.service}-${this.awsProvider.getStage()}`)
+    return functions.filter(f =>
+      f.functionId.startsWith(`${this.serverless.service.service}-${this.awsProvider.getStage()}`)
     )
   }
 
-  async getServiceSubscriptions () {
+  async getEGServiceSubscriptions () {
     const eg = this.getClient()
     let subscriptions = []
     let err
@@ -77,8 +137,8 @@ class EGPlugin {
     if (!err) {
       subscriptions = result
     }
-    return subscriptions.filter(
-      s => s.functionId.startsWith(`${this.serverless.service.service}-${this.awsProvider.getStage()}`)
+    return subscriptions.filter(s =>
+      s.functionId.startsWith(`${this.serverless.service.service}-${this.awsProvider.getStage()}`)
     )
   }
 
@@ -95,9 +155,7 @@ class EGPlugin {
           chalk.yellow.underline('Event emitted:') + chalk.yellow(` ${this.options.event}`)
         )
         this.serverless.cli.consoleLog(
-          chalk.yellow(
-            'Run `serverless logs -f <functionName>` to verify your subscribed function was triggered.'
-          )
+          chalk.yellow('Run `serverless logs -f <functionName>` to verify your subscribed function was triggered.')
         )
       })
   }
@@ -108,7 +166,7 @@ class EGPlugin {
     this.serverless.cli.consoleLog('')
     this.serverless.cli.consoleLog(chalk.yellow.underline('Event Gateway Plugin'))
 
-    const subscriptions = await this.getServiceSubscriptions()
+    const subscriptions = await this.getEGServiceSubscriptions()
     if (subscriptions instanceof Array && subscriptions.length) {
       const unsubList = subscriptions.map(sub =>
         eg.unsubscribe({ subscriptionId: sub.subscriptionId }).then(() => {
@@ -120,8 +178,8 @@ class EGPlugin {
       await Promise.all(unsubList)
     }
 
-    const functions = await this.getServiceFunctions()
-    if (functions instanceof Array && functions.length) {
+    const functions = await this.getEGServiceFunctions()
+    if (Array.isArray(functions) && functions.length) {
       const deleteList = functions.map(func =>
         eg.deleteFunction({ functionId: func.functionId }).then(() => {
           this.serverless.cli.consoleLog(`EventGateway: Function "${func.functionId}" removed.`)
@@ -149,42 +207,34 @@ class EGPlugin {
 
   printFunctions () {
     const eg = this.getClient()
-    return eg
-      .listFunctions()
-      .then((functions) => {
-        const table = new Table({
-          head: ['Function ID', 'Region', 'ARN'],
-          style: { head: ['bold'] }
-        })
-        functions.forEach((f) => {
-          table.push([f.functionId || '', f.provider.region || '', f.provider.arn || ''])
-        })
-        this.serverless.cli.consoleLog(
-          chalk.bold('Functions')
-        )
-        this.serverless.cli.consoleLog(table.toString())
-        this.serverless.cli.consoleLog('')
+    return eg.listFunctions().then(functions => {
+      const table = new Table({
+        head: ['Function ID', 'Region', 'ARN'],
+        style: { head: ['bold'] }
       })
+      functions.forEach(f => {
+        table.push([f.functionId || '', f.provider.region || '', f.provider.arn || ''])
+      })
+      this.serverless.cli.consoleLog(chalk.bold('Functions'))
+      this.serverless.cli.consoleLog(table.toString())
+      this.serverless.cli.consoleLog('')
+    })
   }
 
   printSubscriptions () {
     const eg = this.getClient()
-    return eg
-      .listSubscriptions()
-      .then((subscriptions) => {
-        const table = new Table({
-          head: ['Event', 'Function ID', 'Method', 'Path'],
-          style: { head: ['bold'] }
-        })
-        subscriptions.forEach((s) => {
-          table.push([s.event || '', s.functionId || '', s.method || '', s.path || ''])
-        })
-        this.serverless.cli.consoleLog(
-          chalk.bold('Subscriptions')
-        )
-        this.serverless.cli.consoleLog(table.toString())
-        this.serverless.cli.consoleLog('')
+    return eg.listSubscriptions().then(subscriptions => {
+      const table = new Table({
+        head: ['Event', 'Function ID', 'Method', 'Path'],
+        style: { head: ['bold'] }
       })
+      subscriptions.forEach(s => {
+        table.push([s.event || '', s.functionId || '', s.method || '', s.path || ''])
+      })
+      this.serverless.cli.consoleLog(chalk.bold('Subscriptions'))
+      this.serverless.cli.consoleLog(table.toString())
+      this.serverless.cli.consoleLog('')
+    })
   }
 
   getConfig () {
@@ -194,7 +244,9 @@ class EGPlugin {
     if (this.serverless.service.custom && this.serverless.service.custom.eventgateway) {
       const config = this.serverless.service.custom.eventgateway
       if (config.subdomain !== undefined) {
-        throw new Error('The "subdomain" property in eventgateway config in serverless.yml is deprecated. Please use "space" instead.')
+        throw new Error(
+          'The "subdomain" property in eventgateway config in serverless.yml is deprecated. Please use "space" instead.'
+        )
       }
       if (!config.eventsAPI && !config.configurationAPI) {
         config.hosted = true
@@ -262,17 +314,17 @@ class EGPlugin {
     }
 
     const localFunctions = this.filterFunctionsWithEvents()
-    if (localFunctions.length === 0) {
+    if (localFunctions.length === 0 && this.connectorFunctions.length === 0) {
       return
     }
 
-    const outputs = this.parseOutputs(stack)
+    const outputs = (this.outputs = this.parseOutputs(stack))
     if (!outputs.EventGatewayUserAccessKey || !outputs.EventGatewayUserSecretKey) {
       throw new Error('Event Gateway Access Key or Secret Key not found in outputs')
     }
 
-    let functions = await this.getServiceFunctions()
-    let subscriptions = await this.getServiceSubscriptions()
+    let registeredFunctions = await this.getEGServiceFunctions()
+    let registeredSubscriptions = await this.getEGServiceSubscriptions()
 
     // Register missing functions and create missing subscriptions
     this.filterFunctionsWithEvents().map(async name => {
@@ -296,7 +348,7 @@ class EGPlugin {
       }
       const functionEvents = this.serverless.service.getFunction(name).events.filter(f => f.eventgateway !== undefined)
 
-      const registeredFunction = functions.find(f => f.functionId === functionId)
+      const registeredFunction = registeredFunctions.find(f => f.functionId === functionId)
       if (!registeredFunction) {
         // create function if doesn't exit
         await this.registerFunction(fn)
@@ -310,10 +362,10 @@ class EGPlugin {
         })
       } else {
         // remove function from functions array
-        functions = functions.filter(f => f.functionId !== functionId)
+        registeredFunctions = registeredFunctions.filter(f => f.functionId !== functionId)
 
         // update subscriptions
-        let existingSubscriptions = subscriptions.filter(s => s.functionId === functionId)
+        let existingSubscriptions = registeredSubscriptions.filter(s => s.functionId === functionId)
         functionEvents.forEach(async event => {
           event = event.eventgateway
           const existingSubscription = existingSubscriptions.find(
@@ -332,21 +384,107 @@ class EGPlugin {
         })
 
         // cleanup subscription that are not needed
-        const subscriptionsToDelete = existingSubscriptions.map(
-          sub => eg.unsubscribe({ subscriptionId: sub.subscriptionId })
-            .then(() => this.serverless.cli.consoleLog(`EventGateway: Function "${name}" unsubscribed from "${sub.event}" event.`)))
+        const subscriptionsToDelete = existingSubscriptions.map(sub =>
+          eg
+            .unsubscribe({ subscriptionId: sub.subscriptionId })
+            .then(() =>
+              this.serverless.cli.consoleLog(`EventGateway: Function "${name}" unsubscribed from "${sub.event}" event.`)
+            )
+        )
         await Promise.all(subscriptionsToDelete)
       }
     })
 
+    for (let name in this.connectorFunctions) {
+      const cf = this.connectorFunctions[name]
+      const cfId = `${this.serverless.service.service}-${this.awsProvider.getStage()}-${name}`
+      const registeredFunction = registeredFunctions.find(f => f.functionId === cfId)
+      registeredFunctions = registeredFunctions.filter(f => f.functionId !== cfId)
+      if (!registeredFunction) {
+        await this.registerConnectorFunction(name, cf, cfId)
+        this.serverless.cli.consoleLog(`EventGateway: Function "${name}" registered. (ID: ${cfId})`)
+
+        if (!Array.isArray(cf.events)) continue
+
+        const events = cf.events
+          .filter(eventObj => eventObj.eventgateway)
+          .map(eventObj =>
+            this.createSubscription(config, cfId, eventObj.eventgateway).then(() =>
+              this.serverless.cli.consoleLog(
+                `EventGateway: Function "${name}" subscribed for "${eventObj.eventgateway.event} event.`
+              )
+            )
+          )
+        await Promise.all(events)
+      }
+    }
+
     // Delete function and subscription no longer needed
-    functions.forEach(async functionToDelete => {
-      const subscriptionsToDelete = subscriptions.filter(s => s.functionId === functionToDelete.functionId)
-      await Promise.all(subscriptionsToDelete.map(toDelete => eg.unsubscribe({ subscriptionId: toDelete.subscriptionId })))
+    registeredFunctions.forEach(async functionToDelete => {
+      const subscriptionsToDelete = registeredSubscriptions.filter(s => s.functionId === functionToDelete.functionId)
+      await Promise.all(
+        subscriptionsToDelete.map(toDelete => eg.unsubscribe({ subscriptionId: toDelete.subscriptionId }))
+      )
 
       await eg.deleteFunction({ functionId: functionToDelete.functionId })
-      this.serverless.cli.consoleLog(`EventGateway: Function "${functionToDelete.functionId}" deleted.`)
+      this.serverless.cli.consoleLog(
+        `EventGateway: Function "${functionToDelete.functionId}" and it's subscriptions deleted.`
+      )
     })
+  }
+
+  async registerConnectorFunction (name, func, funcId) {
+    const eg = this.getClient()
+    const fn = {
+      functionId: funcId,
+      type: func.type,
+      provider: {
+        region: this.awsProvider.getRegion(),
+        awsAccessKeyId: this.outputs.EventGatewayUserAccessKey,
+        awsSecretAccessKey: this.outputs.EventGatewayUserSecretKey
+      }
+    }
+    const expectedOutputName = this.connectorFunctionNames(name, func.type).outputName
+
+    switch (func.type) {
+      case 'awsfirehose':
+        if (func.inputs.hasOwnProperty('arn') && func.inputs.hasOwnProperty('deliveryStreamName')) {
+          fn.provider.deliveryStreamName = func.inputs.deliveryStreamName
+        } else if (func.inputs.hasOwnProperty('logicalId')) {
+          if (!this.outputs[expectedOutputName]) {
+            throw new Error(`Expected "${expectedOutputName}" in Stack Outputs but not found`)
+          }
+          fn.provider.deliveryStreamName = this.outputs[expectedOutputName]
+        }
+        break
+      case 'awskinesis':
+        if (func.inputs.hasOwnProperty('arn') && func.inputs.hasOwnProperty('streamName')) {
+          fn.provider.streamName = func.inputs.streamName
+        } else if (func.inputs.hasOwnProperty('logicalId')) {
+          if (!this.outputs[expectedOutputName]) {
+            throw new Error(`Expected "${expectedOutputName}" in Stack Outputs but not found`)
+          }
+          fn.provider.streamName = this.outputs[expectedOutputName]
+        }
+        break
+      case 'awssqs':
+        if (func.inputs.hasOwnProperty('arn') && func.inputs.hasOwnProperty('queueUrl')) {
+          fn.provider.queueUrl = func.inputs.queueUrl
+        } else if (func.inputs.hasOwnProperty('logicalId')) {
+          if (!this.outputs[expectedOutputName]) {
+            throw new Error(`Expected "${expectedOutputName}" in Stack Outputs but not found`)
+          }
+          fn.provider.queueUrl = this.outputs[expectedOutputName]
+        }
+        break
+      default:
+    }
+
+    let [err, result] = await to(eg.registerFunction(fn))
+    if (err) {
+      throw new Error(`Couldn't register Connector Function "${name}": ${err}`)
+    }
+    return result
   }
 
   filterFunctionsWithEvents () {
@@ -355,14 +493,10 @@ class EGPlugin {
       const func = this.serverless.service.getFunction(name)
       const events = func.events
 
-      if (!events) {
-        return
-      }
+      if (!events) return
 
       const eventgateway = events.find(event => event.eventgateway)
-      if (!eventgateway) {
-        return
-      }
+      if (!eventgateway) return
 
       functions.push(name)
     })
@@ -379,16 +513,62 @@ class EGPlugin {
     }, {})
   }
 
+  connectorFunctionOutput (name, type, { logicalId, arn }) {
+    const names = this.connectorFunctionNames(name, type)
+    const outObject = {}
+    outObject[names.outputName] = {
+      Value: arn || { Ref: logicalId },
+      Description: `${names.resourceName} for ${name} connector function.`
+    }
+
+    return outObject
+  }
+
+  connectorFunctionNames (name, type) {
+    let resourceName
+    let action
+    switch (type) {
+      case 'awsfirehose':
+        resourceName = 'deliveryStreamName'
+        action = 'firehose:PutRecord'
+        break
+      case 'awskinesis':
+        resourceName = 'streamName'
+        action = 'kinesis:PutRecord'
+        break
+      case 'awssqs':
+        resourceName = 'queueUrl'
+        action = 'sqs:SendMessage'
+        break
+      default:
+        resourceName = ''
+        action = ''
+    }
+    return {
+      outputName:
+        name.charAt(0).toUpperCase() + name.substr(1) + resourceName.charAt(0).toUpperCase() + resourceName.substr(1),
+      resourceName,
+      action
+    }
+  }
+
   addUserDefinition () {
-    const resources = this.filterFunctionsWithEvents().map(name => {
+    const functionResources = this.filterFunctionsWithEvents().map(name => {
       return {
         'Fn::GetAtt': [this.awsProvider.naming.getLambdaLogicalId(name), 'Arn']
       }
     })
 
-    if (resources.length === 0) {
-      return
+    const policyStatement = Object.values(this.requiredIAMPolicies)
+    if (functionResources.length) {
+      policyStatement.push({
+        Effect: 'Allow',
+        Action: ['lambda:InvokeFunction'],
+        Resource: functionResources
+      })
     }
+
+    if (policyStatement.length === 0) return
 
     merge(this.serverless.service.provider.compiledCloudFormationTemplate.Resources, {
       EventGatewayUser: {
@@ -400,13 +580,7 @@ class EGPlugin {
           Description: 'This policy allows Custom plugin to gather data on IAM users',
           PolicyDocument: {
             Version: '2012-10-17',
-            Statement: [
-              {
-                Effect: 'Allow',
-                Action: ['lambda:InvokeFunction'],
-                Resource: resources
-              }
-            ]
+            Statement: policyStatement
           },
           Users: [
             {
@@ -425,20 +599,23 @@ class EGPlugin {
       }
     })
 
-    merge(this.serverless.service.provider.compiledCloudFormationTemplate.Outputs, {
-      EventGatewayUserAccessKey: {
-        Value: {
-          Ref: 'EventGatewayUserKeys'
+    merge(
+      this.serverless.service.provider.compiledCloudFormationTemplate.Outputs,
+      Object.assign(this.connectorFunctionsOutputs, {
+        EventGatewayUserAccessKey: {
+          Value: {
+            Ref: 'EventGatewayUserKeys'
+          },
+          Description: 'Access Key ID of Custom User'
         },
-        Description: 'Access Key ID of Custom User'
-      },
-      EventGatewayUserSecretKey: {
-        Value: {
-          'Fn::GetAtt': ['EventGatewayUserKeys', 'SecretAccessKey']
-        },
-        Description: 'Secret Key of Custom User'
-      }
-    })
+        EventGatewayUserSecretKey: {
+          Value: {
+            'Fn::GetAtt': ['EventGatewayUserKeys', 'SecretAccessKey']
+          },
+          Description: 'Secret Key of Custom User'
+        }
+      })
+    )
   }
 
   async registerFunction (fn) {

@@ -28,7 +28,10 @@
     "eslint-plugin-promise": "^3.6.0",
     "eslint-plugin-standard": "^3.0.1",
     "istanbul": "^1.1.0-alpha.1",
-    "mocha": "^5.0.5"
+    "mocha": "^5.0.5",
+    "proxyquire": "^2.0.1",
+    "sinon": "^4.5.0",
+    "sinon-chai": "^3.0.0"
   },
   "eslintConfig": {
     "extends": "standard",
