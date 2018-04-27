@@ -29,11 +29,10 @@ Looking for an example to get started? Check out the [**Getting Started Example*
 
 	custom:
 	  eventgateway:
-	    space: myspace  // any name you choose 
+	    url: myorg-app.slsgateway.com
 	    apiKey: <yourkey>
 	  # To use self-hosted Event Gateway, use the following
-	  #  eventsAPI: http://localhost:4000
-	  #  configurationAPI: http://localhost:4001
+	  #  url: http://localhost:4000
 
 	plugins:
 	  - "@serverless/serverless-event-gateway-plugin"
@@ -65,7 +64,7 @@ Looking for an example to get started? Check out the [**Getting Started Example*
 	      - eventgateway:
 	          event: http
 	          path: /goodbye
-	          method: GET            
+	          method: GET
 	```
 
 5. Deploy, then invoke your function(s):
@@ -73,10 +72,10 @@ Looking for an example to get started? Check out the [**Getting Started Example*
 	  ```bash
 	  $ sls deploy
     ....
-    
+
 	  $ curl -X GET https://myspace.slsgateway.com/hello
     ...
-    
+
     $ curl -X GET https://myspace.slsgateway.com/goodbye
     ...
 	  ```
@@ -88,7 +87,7 @@ Looking for an example to get started? Check out the [**Getting Started Example*
 
     Event Gateway
 
-     space: myspace 
+     space: myspace
      endpoint: https://myspace.slsgateway.com
 
     Functions
