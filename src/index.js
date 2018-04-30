@@ -70,7 +70,7 @@ class EGPlugin {
       url: config.url,
       configurationUrl: config.configurationUrl,
       space: config.space,
-      apiKey: config.apiKey
+      accessKey: config.accessKey
     })
   }
 

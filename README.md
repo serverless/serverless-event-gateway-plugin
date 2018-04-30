@@ -4,7 +4,7 @@ Serverless plugin that publishes your functions and subscriptions to Hosted Even
 
 ## Before you start
 
-Get an API key from someone on [the Serverless team](mailto:hello@serverless.com).
+Get an Access key from someone on [the Serverless team](mailto:hello@serverless.com).
 
 ## Example
 
@@ -30,7 +30,7 @@ Looking for an example to get started? Check out the [**Getting Started Example*
 	custom:
 	  eventgateway:
 	    url: myorg-app.slsgateway.com
-	    apiKey: <yourkey>
+	    accessKey: <yourkey>
 	  # To use self-hosted Event Gateway, use the following
 	  #  url: http://localhost:4000
 
@@ -125,5 +125,5 @@ Looking for an example to get started? Check out the [**Getting Started Example*
 
 **Auth concepts:**
 
-- **Space:** A space is a name-spacing mechanism within the Event Gateway. All functions and subscriptions in a space are completely isolated from all other spaces. When using with the hosted Event Gateway, your space will get its own subdomain at `https://<spaceName>.slsgateway.com`.
-- **API key:** The API key is the security mechanism for a space within the hosted Event Gateway. A space belongs to one and only one API key, but an API can own multiple spaces. A request must have the proper API key to modify functions and subscriptions in a space.
+- **Space:** A space is a name-spacing mechanism within the Event Gateway. All functions and subscriptions in a space are completely isolated from all other spaces. When using with the hosted Event Gateway, each Application will get its own Space with a unique domain -- `https://myorg-my-app.slsgateway.com`.
+- **Access key:** The Access key is the security mechanism for a space within the hosted Event Gateway. A request must have the proper Access key to modify functions and subscriptions in a space.
