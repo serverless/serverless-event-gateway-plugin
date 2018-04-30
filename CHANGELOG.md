@@ -1,3 +1,9 @@
+0.6.0 / 2018-04-30
+==================
+
+BACKWARDS INCOMPATIBILITIES:
+
+  * Changed `apiKey` to `accessKey` in plugin configuration
 
 0.4.0 / 2018-03-30
 ==================
