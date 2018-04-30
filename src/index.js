@@ -50,6 +50,13 @@ class EGPlugin {
       }
     }
 
+    // Connector functions
+    this.requiredIAMPolicies = {}
+    this.connectorFunctions = {}
+    this.connectorFunctionsOutputs = {}
+  }
+
+  setupClient () {
     // Plugin config
     let config
     if (this.serverless.service.custom && this.serverless.service.custom.eventgateway) {
@@ -65,11 +72,6 @@ class EGPlugin {
       space: config.space,
       apiKey: config.apiKey
     })
-
-    // Connector functions
-    this.requiredIAMPolicies = {}
-    this.connectorFunctions = {}
-    this.connectorFunctionsOutputs = {}
   }
 
   createConnectorFunctionDefinitions () {
@@ -160,6 +162,7 @@ class EGPlugin {
   }
 
   emitEvent () {
+    this.setupClient()
     this.client
       .emit({
         event: this.options.event,
@@ -176,6 +179,7 @@ class EGPlugin {
   }
 
   async remove () {
+    this.setupClient()
     this.serverless.cli.consoleLog('')
     this.serverless.cli.consoleLog(chalk.yellow.underline('Event Gateway Plugin'))
 
@@ -203,6 +207,7 @@ class EGPlugin {
   }
 
   printDashboard () {
+    this.setupClient()
     this.serverless.cli.consoleLog('')
     this.printGatewayInfo()
     this.printFunctions().then(() => this.printSubscriptions())
@@ -247,6 +252,7 @@ class EGPlugin {
   }
 
   async configureEventGateway () {
+    this.setupClient()
     this.serverless.cli.consoleLog('')
     this.serverless.cli.consoleLog(chalk.yellow.underline('Event Gateway Plugin'))
 
