@@ -330,12 +330,13 @@ class EGPlugin {
 
           // update subscriptions
           let existingSubscriptions = registeredSubscriptions.filter(s => s.functionId === functionId)
+          const toUpperCase = str => !str ? str : str.toUpperCase()
           functionEvents.forEach(async event => {
             event = event.eventgateway
             const existingSubscription = existingSubscriptions.find(
               s =>
                 s.event === event.event &&
-                s.method === event.method &&
+                toUpperCase(s.method) === toUpperCase(event.method) &&
                 s.path === eventPath(event, this.client.config.space)
             )
 

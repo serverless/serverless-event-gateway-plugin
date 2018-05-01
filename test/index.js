@@ -45,7 +45,7 @@ describe('Event Gateway Plugin', () => {
               Outputs: [
                 { OutputKey: 'EventGatewayUserAccessKey', OutputValue: 'ak' },
                 { OutputKey: 'EventGatewayUserSecretKey', OutputValue: 'sk' },
-                { OutputKey: 'TestLambda', OutputValue: 'arn:aws:lambda:us-east-1:123:function:testFunc' }
+                { OutputKey: 'TestLambda', OutputValue: 'arn:aws:lambda:us-east-1:123:function:test-dev-testFunc' }
               ]
             }
           ]
@@ -253,10 +253,10 @@ describe('Event Gateway Plugin', () => {
   describe('subscriptions', () => {
     it('should create http subscription', async () => {
       // given
-      serverlessStub.service.getAllFunctions = sinon.stub().returns(['testFunc'])
+      serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
       serverlessStub.service.getFunction = sinon
         .stub()
-        .withArgs('testFunc')
+        .withArgs('test-dev-testFunc')
         .returns({
           handler: 'index.test',
           events: [{ eventgateway: { event: 'http', path: '/hello', method: 'get' } }]
@@ -269,12 +269,36 @@ describe('Event Gateway Plugin', () => {
 
       // then
       return expect(SDK.prototype.subscribe).calledWith({
-        functionId: 'testFunc',
+        functionId: 'test-dev-testFunc',
         event: 'http',
         method: 'GET',
         path: '/default/hello',
         cors: undefined
       })
+    })
+
+    it('matches existing subscriptions regardless of method case', async () => {
+      // given
+      SDK.prototype.listFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
+      SDK.prototype.listSubscriptions.resolves([
+        { functionId: 'test-dev-testFunc', event: 'http', path: '/default/hello', method: 'POST' }
+      ])
+      serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
+      serverlessStub.service.getFunction = sinon
+        .stub()
+        .withArgs('test-dev-testFunc')
+        .returns({
+          handler: 'index.test',
+          events: [{ eventgateway: { event: 'http', path: '/hello', method: 'pOsT' } }]
+        })
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['after:deploy:finalize']()
+
+      // then
+      return expect(SDK.prototype.subscribe).not.called
     })
   })
 })
