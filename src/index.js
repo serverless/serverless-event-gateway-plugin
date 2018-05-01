@@ -591,7 +591,7 @@ class EGPlugin {
     try {
       return await this.client.registerFunction(fn)
     } catch (err) {
-      throw new Error(`Couldn't register a function ${fn.functionId}. ${err}.`)
+      throw new Error(`Couldn't register a function ${fn.functionId}. ${err}`)
     }
   }
 
@@ -610,7 +610,15 @@ class EGPlugin {
     try {
       return await this.client.subscribe(subscribeEvent)
     } catch (err) {
-      throw new Error(`Couldn't create subscriptions for ${functionId}. ${err}.`)
+      if (event.event === 'http' && err.message.includes('already exists')) {
+        const msg = `Could not subscribe the ${functionId} function to the '${event.path}' ` +
+                    `endpoint. A subscription for that endpoint and method already ` +
+                    `exists in another service. Please remove that subscription before ` +
+                    `registering this subscription.`
+        throw new Error(msg)
+      } else {
+        throw new Error(`Couldn't create subscriptions for ${functionId}. ${err}`)
+      }
     }
   }
 }
