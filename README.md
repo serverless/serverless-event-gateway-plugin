@@ -2,9 +2,35 @@
 
 Serverless plugin that publishes your functions and subscriptions to Hosted Event Gateway.
 
-## Before you start
+## Setup
 
-Get an Access key from someone on [the Serverless team](mailto:hello@serverless.com).
+This is best used with the [hosted version of the Event Gateway](https://dashboard.serverless.com/) provided by Serverless, Inc. as a fully-managed service.
+
+After you create an account, you'll need two things: an **Access Key** and an **Application URL**.
+
+Get an Access Key in the `Access Control` section, and save it to your clipboard:
+
+<img src="https://user-images.githubusercontent.com/6509926/39500460-31212824-4d7a-11e8-8333-832fe2ee8cfd.png" width=500 />
+
+
+Then, grab the URL for one of your Applications:
+
+<img src="https://user-images.githubusercontent.com/6509926/39500504-a029a1f6-4d7a-11e8-806f-0f158574f9c4.png" width=500 />
+
+Finally, save both of these to your `serverless.yml`:
+
+```yml
+# serverless.yml
+
+custom:
+  eventgateway:
+    url: tenant-yourapp.slsgateway.com
+    accessKey: AKmyKey1234
+
+...
+```
+
+You're all set!
 
 ## Example
 
