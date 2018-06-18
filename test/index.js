@@ -5,8 +5,8 @@ const expect = chai.expect
 const merge = require('lodash.merge')
 const sinon = require('sinon')
 const proxyquire = require('proxyquire')
-const SDK = require('@serverless/event-gateway-sdk')
 
+const Client = require('../src/client.js')
 let Plugin = require('../src/index.js')
 
 describe('Event Gateway Plugin', () => {
@@ -16,13 +16,13 @@ describe('Event Gateway Plugin', () => {
   beforeEach(() => {
     sandbox = sinon.sandbox.create()
 
-    sandbox.stub(SDK.prototype, 'registerFunction').resolves()
-    sandbox.stub(SDK.prototype, 'listFunctions').resolves([])
-    sandbox.stub(SDK.prototype, 'listSubscriptions').resolves([])
-    sandbox.stub(SDK.prototype, 'subscribe').resolves()
+    sandbox.stub(Client.prototype, 'createFunction').resolves()
+    sandbox.stub(Client.prototype, 'listFunctions').resolves([])
+    sandbox.stub(Client.prototype, 'listSubscriptions').resolves([])
+    sandbox.stub(Client.prototype, 'subscribe').resolves()
 
     Plugin = proxyquire('../src/index.js', {
-      '@serverless/event-gateway-sdk': SDK
+      './client': Client
     })
 
     serverlessStub = {
@@ -73,7 +73,7 @@ describe('Event Gateway Plugin', () => {
       serverlessStub.service.functions[funcName] = func
 
       const plugin = constructPlugin(serverlessStub)
-      SDK.prototype.registerFunction.rejects('Error')
+      Client.prototype.createFunction.rejects('Error')
 
       return expect(plugin.hooks['package:initialize']).to.throw(
         `Invalid inputs for ${funcType} function "${funcName}". ` +
@@ -96,7 +96,7 @@ describe('Event Gateway Plugin', () => {
       serverlessStub.service.functions[funcName].inputs[inputName] = 'exampleinput'
 
       const plugin = constructPlugin(serverlessStub)
-      SDK.prototype.registerFunction.rejects('Error')
+      Client.prototype.createFunction.rejects('Error')
 
       return expect(plugin.hooks['package:initialize']).to.throw(
         `Invalid inputs for ${funcType} function "${funcName}". ` +
@@ -121,7 +121,7 @@ describe('Event Gateway Plugin', () => {
       serverlessStub.service.functions[funcName].inputs[inputName] = 'exampleinput'
 
       const plugin = constructPlugin(serverlessStub)
-      SDK.prototype.registerFunction.rejects('Error')
+      Client.prototype.createFunction.rejects('Error')
 
       return expect(plugin.hooks['package:initialize']).to.throw(
         `Invalid inputs for ${funcType} function "${funcName}". ` +
@@ -146,7 +146,7 @@ describe('Event Gateway Plugin', () => {
       serverlessStub.service.functions[funcName].inputs[inputName] = 'exampleinput'
 
       const plugin = constructPlugin(serverlessStub)
-      SDK.prototype.registerFunction.rejects('Error')
+      Client.prototype.createFunction.rejects('Error')
 
       return expect(plugin.hooks['package:initialize']).to.throw(
         `Invalid inputs for ${funcType} function "${funcName}". ` +
@@ -171,7 +171,7 @@ describe('Event Gateway Plugin', () => {
       serverlessStub.service.functions[funcName].inputs[inputName] = 'exampleinput'
 
       const plugin = constructPlugin(serverlessStub)
-      SDK.prototype.registerFunction.rejects('Error')
+      Client.prototype.createFunction.rejects('Error')
 
       return expect(plugin.hooks['package:initialize']).to.throw(
         `Invalid inputs for ${funcType} function "${funcName}". ` +
@@ -197,7 +197,7 @@ describe('Event Gateway Plugin', () => {
       await plugin.hooks['after:deploy:finalize']()
 
       // then
-      return expect(SDK.prototype.registerFunction).calledWith({
+      return expect(Client.prototype.createFunction).calledWith({
         functionId: 'test-dev-saveToKinesis',
         provider: { streamName: 'testStream', awsAccessKeyId: 'ak', awsSecretAccessKey: 'sk', region: 'us-east-1' },
         type: 'awskinesis'
@@ -214,7 +214,7 @@ describe('Event Gateway Plugin', () => {
         }
       }
       const plugin = constructPlugin(serverlessStub)
-      SDK.prototype.registerFunction.rejects('Error')
+      Client.prototype.createFunction.rejects('Error')
 
       // when
       plugin.hooks['package:initialize']()
@@ -268,19 +268,18 @@ describe('Event Gateway Plugin', () => {
       await plugin.hooks['after:deploy:finalize']()
 
       // then
-      return expect(SDK.prototype.subscribe).calledWith({
-        functionId: 'test-dev-testFunc',
+      return expect(Client.prototype.subscribe).calledWith({
         event: 'http',
-        method: 'GET',
-        path: '/default/hello',
-        cors: undefined
+        functionId: 'test-dev-testFunc',
+        method: 'get',
+        path: '/hello'
       })
     })
 
     it('matches existing subscriptions regardless of method case', async () => {
       // given
-      SDK.prototype.listFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
-      SDK.prototype.listSubscriptions.resolves([
+      Client.prototype.listFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
+      Client.prototype.listSubscriptions.resolves([
         { functionId: 'test-dev-testFunc', event: 'http', path: '/default/hello', method: 'POST' }
       ])
       serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
@@ -298,7 +297,7 @@ describe('Event Gateway Plugin', () => {
       await plugin.hooks['after:deploy:finalize']()
 
       // then
-      return expect(SDK.prototype.subscribe).not.called
+      return expect(Client.prototype.subscribe).not.called
     })
   })
 })
