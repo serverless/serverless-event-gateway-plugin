@@ -238,18 +238,21 @@ class EGPlugin {
     this.serverless.cli.consoleLog('')
     this.serverless.cli.consoleLog(chalk.yellow.underline('Event Gateway Plugin'))
 
+    const outputs = await this.fetchStackOutputs()
+
+    this.configureEventTypes()
+
     const localFunctions = this.filterFunctionsWithEvents()
     if (localFunctions.length === 0 && this.connectorFunctions.length === 0) {
       return
     }
 
-    const outputs = await this.fetchStackOutputs()
     let registeredFunctions = await this.client.listServiceFunctions()
     let registeredSubscriptions = await this.client.listServiceSubscriptions()
 
     // Register missing functions and create missing subscriptions
     await Promise.all(
-      this.filterFunctionsWithEvents().map(async name => {
+      localFunctions.map(async name => {
         const outputKey = this.awsProvider.naming.getLambdaVersionOutputLogicalId(name)
         const fullArn = outputs[outputKey]
         // Remove the function version from the ARN so that it always uses the latest version.
@@ -367,6 +370,41 @@ class EGPlugin {
         `EventGateway: Function "${functionToDelete.functionId}" and it's subscriptions deleted.`
       )
     })
+  }
+
+  async configureEventTypes () {
+    let registeredEventTypes = await this.client.listEventTypes()
+
+    if (this.serverless.service.custom.eventTypes) {
+      const definedEventTypes = Object.keys(this.serverless.service.custom.eventTypes).map(name => {
+        return { name, authorizerId: this.serverless.service.custom.eventTypes[name].authorizerId }
+      })
+
+      await Promise.all(
+        definedEventTypes.map(async eventType => {
+          const registeredEventType = registeredEventTypes.find(et => et.name === eventType.name)
+          if (!registeredEventType) {
+            await this.client.createEventType(eventType)
+            this.serverless.cli.consoleLog(`EventGateway: Event Type "${eventType}" created.`)
+          } else {
+            if (registeredEventTypes.authorizerId === eventType.authorizerId) {
+              registeredEventTypes = registeredEventTypes.filter(et => et.name !== eventType.name)
+            } else {
+              await this.client.updateEventType(eventType)
+              this.serverless.cli.consoleLog(`EventGateway: Event Type "${eventType}" updated.`)
+            }
+          }
+        })
+      )
+
+      // delete unused event types
+      await Promise.all(
+        registeredEventTypes.map(async eventType => {
+          await this.client.deleteEventType({ name: eventType.name })
+          this.serverless.cli.consoleLog(`EventGateway: Event Type "${eventType}" deleted.`)
+        })
+      )
+    }
   }
 
   async registerConnectorFunction (outputs, name, func, funcId) {

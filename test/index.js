@@ -16,10 +16,9 @@ describe('Event Gateway Plugin', () => {
   beforeEach(() => {
     sandbox = sinon.sandbox.create()
 
-    sandbox.stub(Client.prototype, 'createFunction').resolves()
-    sandbox.stub(Client.prototype, 'listFunctions').resolves([])
-    sandbox.stub(Client.prototype, 'listSubscriptions').resolves([])
-    sandbox.stub(Client.prototype, 'subscribe').resolves()
+    sandbox.stub(Client.prototype, 'listEventTypes')
+    sandbox.stub(Client.prototype, 'listFunctions')
+    sandbox.stub(Client.prototype, 'listSubscriptions')
 
     Plugin = proxyquire('../src/index.js', {
       './client': Client
@@ -58,7 +57,73 @@ describe('Event Gateway Plugin', () => {
     sandbox.restore()
   })
 
+  describe('event types', () => {
+    beforeEach(() => {
+      sandbox.stub(Client.prototype, 'createEventType')
+      sandbox.stub(Client.prototype, 'deleteEventType')
+      sandbox.stub(Client.prototype, 'updateEventType')
+    })
+
+    it('should create event type ', async () => {
+      // given
+      serverlessStub.service.custom.eventTypes = {
+        'test.event': {
+          authorizerId: 'auth'
+        }
+      }
+      Client.prototype.listEventTypes.resolves([])
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['after:deploy:finalize']()
+
+      // then
+      return expect(Client.prototype.createEventType).calledWith({
+        name: 'test.event',
+        authorizerId: 'auth'
+      })
+    })
+
+    it('should remove event types no longer defined in the configuration', async () => {
+      // given
+      serverlessStub.service.custom.eventTypes = { 'test.event': {} }
+      Client.prototype.listEventTypes.resolves([{ name: 'test.event' }, { name: 'test.event.deleted' }])
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['after:deploy:finalize']()
+
+      // then
+      return expect(Client.prototype.deleteEventType).calledWith({
+        name: 'test.event.deleted'
+      })
+    })
+
+    it('should update event type with different authorizer ID', async () => {
+      // given
+      serverlessStub.service.custom.eventTypes = { 'test.event': { authorizerId: 'authNew' } }
+      Client.prototype.listEventTypes.resolves([{ name: 'test.event', authorizerId: 'authOld' }])
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['after:deploy:finalize']()
+
+      // then
+      return expect(Client.prototype.updateEventType).calledWith({
+        name: 'test.event',
+        authorizerId: 'authNew'
+      })
+    })
+  })
+
   describe('connector functions', () => {
+    beforeEach(() => {
+      sandbox.stub(Client.prototype, 'createFunction')
+    })
+
     it('should throw error if connector function has no inputs', async () => {
       // given
       const funcName = 'saveToSQS'
@@ -190,6 +255,7 @@ describe('Event Gateway Plugin', () => {
           events: [{ eventgateway: { event: 'test.tested' } }]
         }
       }
+      sandbox.stub(Client.prototype, 'subscribe').resolves()
       const plugin = constructPlugin(serverlessStub)
 
       // when
@@ -251,6 +317,11 @@ describe('Event Gateway Plugin', () => {
   })
 
   describe('subscriptions', () => {
+    beforeEach(() => {
+      sandbox.stub(Client.prototype, 'createFunction')
+      sandbox.stub(Client.prototype, 'subscribe')
+    })
+
     it('should create http subscription', async () => {
       // given
       serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
