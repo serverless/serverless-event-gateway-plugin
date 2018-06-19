@@ -238,34 +238,12 @@ class EGPlugin {
     this.serverless.cli.consoleLog('')
     this.serverless.cli.consoleLog(chalk.yellow.underline('Event Gateway Plugin'))
 
-    let data
-    try {
-      data = await this.awsProvider.request(
-        'CloudFormation',
-        'describeStacks',
-        { StackName: this.awsProvider.naming.getStackName() },
-        this.awsProvider.getStage(),
-        this.awsProvider.getRegion()
-      )
-    } catch (err) {
-      throw new Error('Error during fetching information about stack.')
-    }
-
-    const stack = data.Stacks.pop()
-    if (!stack) {
-      throw new Error('Unable to fetch CloudFormation stack information.')
-    }
-
     const localFunctions = this.filterFunctionsWithEvents()
     if (localFunctions.length === 0 && this.connectorFunctions.length === 0) {
       return
     }
 
-    const outputs = (this.outputs = this.parseOutputs(stack))
-    if (!outputs.EventGatewayUserAccessKey || !outputs.EventGatewayUserSecretKey) {
-      throw new Error('Event Gateway Access Key or Secret Key not found in outputs')
-    }
-
+    const outputs = await this.fetchStackOutputs()
     let registeredFunctions = await this.client.listServiceFunctions()
     let registeredSubscriptions = await this.client.listServiceSubscriptions()
 
@@ -357,7 +335,7 @@ class EGPlugin {
       const registeredFunction = registeredFunctions.find(f => f.functionId === cfId)
       registeredFunctions = registeredFunctions.filter(f => f.functionId !== cfId)
       if (!registeredFunction) {
-        await this.registerConnectorFunction(name, cf, cfId)
+        await this.registerConnectorFunction(outputs, name, cf, cfId)
         this.serverless.cli.consoleLog(`EventGateway: Function "${name}" registered. (ID: ${cfId})`)
 
         if (!Array.isArray(cf.events)) continue
@@ -391,14 +369,14 @@ class EGPlugin {
     })
   }
 
-  async registerConnectorFunction (name, func, funcId) {
+  async registerConnectorFunction (outputs, name, func, funcId) {
     const fn = {
       functionId: funcId,
       type: func.type,
       provider: {
         region: this.awsProvider.getRegion(),
-        awsAccessKeyId: this.outputs.EventGatewayUserAccessKey,
-        awsSecretAccessKey: this.outputs.EventGatewayUserSecretKey
+        awsAccessKeyId: outputs.EventGatewayUserAccessKey,
+        awsSecretAccessKey: outputs.EventGatewayUserSecretKey
       }
     }
     const expectedOutputName = this.connectorFunctionNames(name, func.type).outputName
@@ -408,30 +386,30 @@ class EGPlugin {
         if (func.inputs.hasOwnProperty('arn') && func.inputs.hasOwnProperty('deliveryStreamName')) {
           fn.provider.deliveryStreamName = func.inputs.deliveryStreamName
         } else if (func.inputs.hasOwnProperty('logicalId')) {
-          if (!this.outputs[expectedOutputName]) {
+          if (!outputs[expectedOutputName]) {
             throw new Error(`Expected "${expectedOutputName}" in Stack Outputs but not found`)
           }
-          fn.provider.deliveryStreamName = this.outputs[expectedOutputName]
+          fn.provider.deliveryStreamName = outputs[expectedOutputName]
         }
         break
       case 'awskinesis':
         if (func.inputs.hasOwnProperty('arn') && func.inputs.hasOwnProperty('streamName')) {
           fn.provider.streamName = func.inputs.streamName
         } else if (func.inputs.hasOwnProperty('logicalId')) {
-          if (!this.outputs[expectedOutputName]) {
+          if (!outputs[expectedOutputName]) {
             throw new Error(`Expected "${expectedOutputName}" in Stack Outputs but not found`)
           }
-          fn.provider.streamName = this.outputs[expectedOutputName]
+          fn.provider.streamName = outputs[expectedOutputName]
         }
         break
       case 'awssqs':
         if (func.inputs.hasOwnProperty('arn') && func.inputs.hasOwnProperty('queueUrl')) {
           fn.provider.queueUrl = func.inputs.queueUrl
         } else if (func.inputs.hasOwnProperty('logicalId')) {
-          if (!this.outputs[expectedOutputName]) {
+          if (!outputs[expectedOutputName]) {
             throw new Error(`Expected "${expectedOutputName}" in Stack Outputs but not found`)
           }
-          fn.provider.queueUrl = this.outputs[expectedOutputName]
+          fn.provider.queueUrl = outputs[expectedOutputName]
         }
         break
       default:
@@ -459,15 +437,6 @@ class EGPlugin {
     })
 
     return functions
-  }
-
-  parseOutputs (stack) {
-    return stack.Outputs.reduce((agg, current) => {
-      if (current.OutputKey && current.OutputValue) {
-        agg[current.OutputKey] = current.OutputValue
-      }
-      return agg
-    }, {})
   }
 
   connectorFunctionOutput (name, type, { logicalId, arn }) {
@@ -573,6 +542,38 @@ class EGPlugin {
         }
       })
     )
+  }
+
+  async fetchStackOutputs () {
+    let data
+    try {
+      data = await this.awsProvider.request(
+        'CloudFormation',
+        'describeStacks',
+        { StackName: this.awsProvider.naming.getStackName() },
+        this.awsProvider.getStage(),
+        this.awsProvider.getRegion()
+      )
+    } catch (err) {
+      throw new Error('Error during fetching information about stack.')
+    }
+
+    const stack = data.Stacks.pop()
+    if (!stack) {
+      throw new Error('Unable to fetch CloudFormation stack information.')
+    }
+
+    const outputs = stack.Outputs.reduce((agg, current) => {
+      if (current.OutputKey && current.OutputValue) {
+        agg[current.OutputKey] = current.OutputValue
+      }
+      return agg
+    }, {})
+    if (!outputs.EventGatewayUserAccessKey || !outputs.EventGatewayUserSecretKey) {
+      throw new Error('Event Gateway Access Key or Secret Key not found in outputs')
+    }
+
+    return outputs
   }
 }
 
