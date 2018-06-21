@@ -15,10 +15,7 @@ describe('Event Gateway Plugin', () => {
 
   beforeEach(() => {
     sandbox = sinon.sandbox.create()
-
-    sandbox.stub(Client.prototype, 'listEventTypes')
-    sandbox.stub(Client.prototype, 'listFunctions')
-    sandbox.stub(Client.prototype, 'listSubscriptions')
+    sandbox.stub(Client.prototype)
 
     Plugin = proxyquire('../src/index.js', {
       './client': Client
@@ -58,12 +55,6 @@ describe('Event Gateway Plugin', () => {
   })
 
   describe('event types', () => {
-    beforeEach(() => {
-      sandbox.stub(Client.prototype, 'createEventType')
-      sandbox.stub(Client.prototype, 'deleteEventType')
-      sandbox.stub(Client.prototype, 'updateEventType')
-    })
-
     it('should create event type ', async () => {
       // given
       serverlessStub.service.custom.eventTypes = {
@@ -121,7 +112,7 @@ describe('Event Gateway Plugin', () => {
 
   describe('connector functions', () => {
     beforeEach(() => {
-      sandbox.stub(Client.prototype, 'createFunction')
+      Client.prototype.listEventTypes.resolves([])
     })
 
     it('should throw error if connector function has no inputs', async () => {
@@ -255,7 +246,8 @@ describe('Event Gateway Plugin', () => {
           events: [{ eventgateway: { event: 'test.tested' } }]
         }
       }
-      sandbox.stub(Client.prototype, 'subscribe').resolves()
+      Client.prototype.listServiceFunctions.resolves([])
+      Client.prototype.subscribeAndCreateCORS.resolves()
       const plugin = constructPlugin(serverlessStub)
 
       // when
@@ -279,6 +271,7 @@ describe('Event Gateway Plugin', () => {
           events: [{ eventgateway: { event: 'test.tested' } }]
         }
       }
+      Client.prototype.listServiceFunctions.resolves([])
       const plugin = constructPlugin(serverlessStub)
       Client.prototype.createFunction.rejects('Error')
 
@@ -318,19 +311,30 @@ describe('Event Gateway Plugin', () => {
 
   describe('subscriptions', () => {
     beforeEach(() => {
-      sandbox.stub(Client.prototype, 'createFunction')
-      sandbox.stub(Client.prototype, 'subscribe')
+      Client.prototype.listEventTypes.resolves([])
+      Client.prototype.listServiceFunctions.resolves([])
     })
 
-    it('should create http subscription', async () => {
+    it('should recreate subscription if path changed', async () => {
       // given
+      const existingSubscription = {
+        subscriptionId: 'testid',
+        type: 'async',
+        functionId: 'test-dev-testFunc',
+        method: 'GET',
+        path: '/hello'
+      }
+      Client.prototype.unsubscribe.resolves()
+      Client.prototype.unsubscribeAndDeleteCORS.resolves()
+      Client.prototype.listServiceSubscriptions.resolves([existingSubscription])
+      Client.prototype.listServiceFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
       serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
       serverlessStub.service.getFunction = sinon
         .stub()
         .withArgs('test-dev-testFunc')
         .returns({
           handler: 'index.test',
-          events: [{ eventgateway: { event: 'http', path: '/hello', method: 'get' } }]
+          events: [{ eventgateway: { type: 'async', eventType: 'user.created', path: '/hello1', method: 'GET' } }]
         })
       const plugin = constructPlugin(serverlessStub)
 
@@ -339,36 +343,101 @@ describe('Event Gateway Plugin', () => {
       await plugin.hooks['after:deploy:finalize']()
 
       // then
-      return expect(Client.prototype.subscribe).calledWith({
-        event: 'http',
+      expect(Client.prototype.unsubscribeAndDeleteCORS).calledWith(existingSubscription)
+      return expect(Client.prototype.subscribeAndCreateCORS).calledWith({
+        type: 'async',
+        eventType: 'user.created',
         functionId: 'test-dev-testFunc',
-        method: 'get',
-        path: '/hello'
+        method: 'GET',
+        path: '/hello1'
       })
     })
 
-    it('matches existing subscriptions regardless of method case', async () => {
-      // given
-      Client.prototype.listFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
-      Client.prototype.listSubscriptions.resolves([
-        { functionId: 'test-dev-testFunc', event: 'http', path: '/default/hello', method: 'POST' }
-      ])
-      serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
-      serverlessStub.service.getFunction = sinon
-        .stub()
-        .withArgs('test-dev-testFunc')
-        .returns({
-          handler: 'index.test',
-          events: [{ eventgateway: { event: 'http', path: '/hello', method: 'pOsT' } }]
+    describe('legacy mode (old subscription format support)', () => {
+      it('should create http subscription', async () => {
+        // given
+        serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
+        serverlessStub.service.getFunction = sinon
+          .stub()
+          .withArgs('test-dev-testFunc')
+          .returns({
+            handler: 'index.test',
+            events: [{ eventgateway: { event: 'http', path: '/hello', method: 'get' } }]
+          })
+        const plugin = constructPlugin(serverlessStub)
+
+        // when
+        plugin.hooks['package:initialize']()
+        await plugin.hooks['after:deploy:finalize']()
+
+        // then
+        return expect(Client.prototype.subscribeAndCreateCORS).calledWith({
+          event: 'http',
+          functionId: 'test-dev-testFunc',
+          method: 'get',
+          path: '/hello'
         })
-      const plugin = constructPlugin(serverlessStub)
+      })
 
-      // when
-      plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      it('should not delete HTTP subscription', async () => {
+        // given
+        Client.prototype.listFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
+        Client.prototype.listSubscriptions.resolves([
+          {
+            functionId: 'test-dev-testFunc',
+            eventType: 'http.request',
+            type: 'sync',
+            path: '/default/hello',
+            method: 'POST'
+          }
+        ])
+        serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
+        serverlessStub.service.getFunction = sinon
+          .stub()
+          .withArgs('test-dev-testFunc')
+          .returns({
+            handler: 'index.test',
+            events: [{ eventgateway: { event: 'http', path: '/hello', method: 'POST' } }]
+          })
+        const plugin = constructPlugin(serverlessStub)
 
-      // then
-      return expect(Client.prototype.subscribe).not.called
+        // when
+        plugin.hooks['package:initialize']()
+        await plugin.hooks['after:deploy:finalize']()
+
+        // then
+        return expect(Client.prototype.unsubscribeAndDeleteCORS).not.called
+      })
+
+      it('should not delete custom event subscription', async () => {
+        // given
+        Client.prototype.listFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
+        Client.prototype.listSubscriptions.resolves([
+          {
+            functionId: 'test-dev-testFunc',
+            eventType: 'user.created',
+            type: 'async',
+            path: '/default/',
+            method: 'POST'
+          }
+        ])
+        serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
+        serverlessStub.service.getFunction = sinon
+          .stub()
+          .withArgs('test-dev-testFunc')
+          .returns({
+            handler: 'index.test',
+            events: [{ eventgateway: { event: 'user.created' } }]
+          })
+        const plugin = constructPlugin(serverlessStub)
+
+        // when
+        plugin.hooks['package:initialize']()
+        await plugin.hooks['after:deploy:finalize']()
+
+        // then
+        return expect(Client.prototype.unsubscribeAndDeleteCORS).not.called
+      })
     })
   })
 })

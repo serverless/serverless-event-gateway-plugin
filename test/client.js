@@ -14,10 +14,6 @@ describe('Event Gateway Client', () => {
   beforeEach(() => {
     sandbox = sinon.sandbox.create()
 
-    sandbox.stub(SDK.prototype, 'createFunction')
-    sandbox.stub(SDK.prototype, 'listFunctions')
-    sandbox.stub(SDK.prototype, 'listSubscriptions')
-
     proxyquire('../src/index.js', {
       '@serverless/event-gateway-sdk': SDK
     })
@@ -28,6 +24,10 @@ describe('Event Gateway Client', () => {
   })
 
   describe('createFunction', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'createFunction')
+    })
+
     it('should throw an error', () => {
       SDK.prototype.createFunction.rejects('Error')
       const client = new Client({ url: 'http://localhost:4001' }, 'test', 'dev')
@@ -39,6 +39,10 @@ describe('Event Gateway Client', () => {
   })
 
   describe('listServiceFunctions', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'listFunctions')
+    })
+
     it('should return function for specific service', () => {
       SDK.prototype.listFunctions.resolves([
         { functionId: 'testService1-dev-func1' },
@@ -53,6 +57,10 @@ describe('Event Gateway Client', () => {
   })
 
   describe('listServiceSubscriptions', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'listSubscriptions')
+    })
+
     it('should return function for specific service', () => {
       SDK.prototype.listSubscriptions.resolves([
         { functionId: 'testService1-dev-func1' },
@@ -63,6 +71,103 @@ describe('Event Gateway Client', () => {
       const result = client.listServiceSubscriptions()
 
       return expect(result).to.eventually.be.deep.equal([{ functionId: 'testService1-dev-func1' }])
+    })
+  })
+
+  describe('subscribeAndCreateCORS', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'subscribe')
+    })
+
+    it('should support legacy custom event format', async () => {
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
+
+      await client.subscribeAndCreateCORS({
+        functionId: 'test',
+        event: 'test.event',
+        path: '/test'
+      })
+
+      return expect(SDK.prototype.subscribe).calledWith({
+        type: 'async',
+        functionId: 'test',
+        eventType: 'test.event',
+        path: '/default/test',
+        method: 'POST'
+      })
+    })
+
+    it('should support legacy HTTP event format', async () => {
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
+
+      await client.subscribeAndCreateCORS({
+        functionId: 'test',
+        event: 'http',
+        path: '/test',
+        method: 'POST'
+      })
+
+      return expect(SDK.prototype.subscribe).calledWith({
+        type: 'sync',
+        functionId: 'test',
+        eventType: 'http.request',
+        path: '/default/test',
+        method: 'POST'
+      })
+    })
+
+    it('should prefix path with space', async () => {
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
+
+      await client.subscribeAndCreateCORS({
+        type: 'async',
+        functionId: 'test',
+        eventType: 'test.event',
+        path: '/test',
+        method: 'POST'
+      })
+
+      return expect(SDK.prototype.subscribe).calledWith({
+        type: 'async',
+        functionId: 'test',
+        eventType: 'test.event',
+        path: '/default/test',
+        method: 'POST'
+      })
+    })
+
+    it('should configure CORS', async () => {
+      SDK.prototype.subscribe.resolves()
+      sandbox.stub(SDK.prototype, 'createCORS')
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
+
+      await client.subscribeAndCreateCORS({
+        type: 'async',
+        functionId: 'test',
+        eventType: 'test.event',
+        path: '/test',
+        method: 'POST',
+        cors: true
+      })
+
+      return expect(SDK.prototype.createCORS).calledWith({
+        method: 'POST',
+        path: '/default/test'
+      })
+    })
+
+    it('should remove CORS configuration when the subscription is removed', async () => {
+      sandbox.stub(SDK.prototype, 'unsubscribe').resolves()
+      sandbox.stub(SDK.prototype, 'createCORS').resolves()
+      sandbox.stub(SDK.prototype, 'deleteCORS')
+      sandbox.stub(SDK.prototype, 'listCORS').resolves([{ corsId: 'GET%2Ftest', path: '/test', method: 'GET' }])
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
+
+      await client.unsubscribeAndDeleteCORS({ subscriptionId: 'testid', method: 'GET', path: '/test' })
+
+      return expect(SDK.prototype.deleteCORS).calledWith({
+        corsId: 'GET%2Ftest'
+      })
     })
   })
 })

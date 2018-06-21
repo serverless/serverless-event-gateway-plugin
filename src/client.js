@@ -15,32 +15,73 @@ module.exports = class EGClient extends SDK {
     }
   }
 
-  async subscribe (event) {
-    const subscribeEvent = {
+  async subscribeAndCreateCORS (event) {
+    const toUpperCase = str => (str instanceof String ? str.toUpperCase() : str)
+
+    let subscribeEvent = {
       functionId: event.functionId,
-      event: event.event,
-      path: eventPath(event, this.client.config.space),
-      cors: event.cors
+      path: eventPath(event, this.config.space)
     }
 
-    if (event.event === 'http') {
-      subscribeEvent.method = event.method.toUpperCase() || 'GET'
+    if (event.event) {
+      // legacy mode
+      if (event.event === 'http') {
+        subscribeEvent.type = 'sync'
+        subscribeEvent.eventType = 'http.request'
+        subscribeEvent.method = toUpperCase(event.method) || 'GET'
+      } else {
+        subscribeEvent.type = 'async'
+        subscribeEvent.eventType = event.event
+        subscribeEvent.method = 'POST'
+      }
+    } else {
+      subscribeEvent.type = event.type
+      subscribeEvent.eventType = event.eventType
+      subscribeEvent.method = toUpperCase(event.method)
+    }
+
+    let cors
+    if (event.cors === true) {
+      cors = {
+        path: subscribeEvent.path,
+        method: subscribeEvent.method
+      }
+    } else {
+      cors = event.cors
     }
 
     try {
-      return await super.subscribe(subscribeEvent)
+      await super.subscribe(subscribeEvent)
     } catch (err) {
-      if (event.event === 'http' && err.message.includes('already exists')) {
+      if (subscribeEvent.type === 'sync' && err.message.includes('already exists')) {
         const msg =
-          `Could not subscribe the ${event.functionId} function to the '${event.path}' ` +
+          `Could not subscribe the ${subscribeEvent.functionId} function to the '${subscribeEvent.path}' ` +
           `endpoint. A subscription for that endpoint and method already ` +
           `exists in another service. Please remove that subscription before ` +
           `registering this subscription.`
         throw new Error(msg)
       } else {
-        throw new Error(`Couldn't create subscriptions for ${event.functionId}. ${err}`)
+        throw new Error(`Couldn't create subscription for ${subscribeEvent.functionId}. ${err}`)
       }
     }
+
+    if (cors) {
+      try {
+        await super.createCORS(cors)
+      } catch (err) {
+        throw new Error(`Couldn't configure CORS for path ${subscribeEvent.path}. ${err}`)
+      }
+    }
+  }
+
+  async unsubscribeAndDeleteCORS (subscription) {
+    return Promise.all([
+      super.unsubscribe({ subscriptionId: subscription.subscriptionId }),
+      super
+        .listCORS()
+        .then(list => list.find(c => c.path === subscription.path && c.method === subscription.method))
+        .then(cors => cors && super.deleteCORS({ corsId: cors.corsId }))
+    ])
   }
 
   async listServiceFunctions () {

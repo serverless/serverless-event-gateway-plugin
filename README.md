@@ -54,6 +54,8 @@ Looking for an example to get started? Check out the [**Getting Started Example*
 	service: my-service
 
 	custom:
+	  eventTypes:
+	    http.request:
 	  eventgateway:
 	    url: myorg-app.slsgateway.com
 	    accessKey: <yourkey>
@@ -81,14 +83,16 @@ Looking for an example to get started? Check out the [**Getting Started Example*
 	    handler: handler.hello
 	    events:
 	      - eventgateway:
-	          event: http
+	          type: sync
+	          eventType: http.request
 	          path: /hello
 	          method: GET
 	  goodbye:
 	    handler: handler.goodbye
 	    events:
 	      - eventgateway:
-	          event: http
+	          type: sync
+	          eventType: http.request
 	          path: /goodbye
 	          method: GET
 	```
@@ -142,12 +146,12 @@ Looking for an example to get started? Check out the [**Getting Started Example*
 
 - **Function:** A function is a piece of compute + logic that is ready to respond to an event. Currently, functions can be AWS Lambda functions or HTTP-accessible endpoints.
 - **Events:** Events are bits of data indicating something happened -- a user was created, a email was sent, or a client requested made an HTTP request.
-- **Subscriptions:** Events are routed to functions via subscriptions. Subscriptions may be *synchronous*, as in the case of subscriptions for HTTP events, or *asynchronous*, as in the case of custom events.
+- **Subscriptions:** Events are routed to functions via subscriptions. Subscriptions may be [*synchronous* or *asynchronous*](https://github.com/serverless/event-gateway/blob/master/docs/subscription-types.md).
 
 **Event concepts:**
 
-- **HTTP Event:** In the Event Gateway, an HTTP event is an event which expects a synchronous response from a backing function. An HTTP event subscription is a combination of *method* and *path* -- e.g. "GET /users" vs "POST /users".
-- **Custom Events:** All non-HTTP events are custom events. Custom events are asynchronous. You may have multiple functions subscribed to the same custom event.
+- **HTTP Request Event:** In the Event Gateway, an [HTTP request event](https://github.com/serverless/event-gateway/blob/master/docs/api.md#http-request-event) is an event which represents raw HTTP request. It's especially helpful for building REST APIs or supporting legacy payloads.
+- **Custom Events:** All non-HTTP request events are custom events. You may have multiple functions subscribed asynchronously to the same custom event.
 
 **Auth concepts:**
 
