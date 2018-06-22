@@ -47,7 +47,16 @@ module.exports = class EGClient extends SDK {
         method: subscribeEvent.method
       }
     } else {
-      cors = event.cors
+      if (event.cors) {
+        cors = {
+          path: subscribeEvent.path,
+          method: subscribeEvent.method,
+          allowedOrigins: event.cors.origins,
+          allowedMethods: event.cors.methods,
+          allowedHeaders: event.cors.headers,
+          allowCredentials: event.cors.allowCredentials
+        }
+      }
     }
 
     try {

@@ -116,6 +116,35 @@ describe('Event Gateway Client', () => {
       })
     })
 
+    it('should support legacy CORS format', async () => {
+      SDK.prototype.subscribe.resolves()
+      sandbox.stub(SDK.prototype, 'createCORS')
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
+
+      await client.subscribeAndCreateCORS({
+        type: 'async',
+        functionId: 'test',
+        eventType: 'test.event',
+        path: '/test',
+        method: 'POST',
+        cors: {
+          origins: ['http://example.com'],
+          methods: ['POST'],
+          headers: ['x-api-key'],
+          allowCredentials: true
+        }
+      })
+
+      return expect(SDK.prototype.createCORS).calledWith({
+        method: 'POST',
+        path: '/default/test',
+        allowedOrigins: ['http://example.com'],
+        allowedMethods: ['POST'],
+        allowedHeaders: ['x-api-key'],
+        allowCredentials: true
+      })
+    })
+
     it('should prefix path with space', async () => {
       const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
 
