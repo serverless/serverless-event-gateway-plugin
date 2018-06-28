@@ -325,7 +325,7 @@ class EGPlugin {
                 .unsubscribeAndDeleteCORS(sub)
                 .then(() =>
                   this.serverless.cli.consoleLog(
-                    `EventGateway: Function "${name}" unsubscribed from "${sub.event}" event.`
+                    `EventGateway: Function "${name}" unsubscribed from "${sub.event || sub.eventType}" event.`
                   )
                 )
             )
