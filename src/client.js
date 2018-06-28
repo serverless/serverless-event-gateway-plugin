@@ -7,8 +7,25 @@ module.exports = class EGClient extends SDK {
     this.stage = stage
   }
 
+  createEventType (et) {
+    et.metadata = this.metadata()
+    return super.createEventType(et)
+  }
+
+  updateEventType (et) {
+    if (!et.metadata) {
+      et.metadata = this.metadata()
+    } else {
+      const { service, stage } = this.metadata()
+      et.metadata.service = service
+      et.metadata.stage = stage
+    }
+    return super.updateEventType(et)
+  }
+
   async createFunction (fn) {
     try {
+      fn.metadata = this.metadata()
       return await super.createFunction(fn)
     } catch (err) {
       throw new Error(`Couldn't register a function ${fn.functionId}. ${err}`)
@@ -44,7 +61,8 @@ module.exports = class EGClient extends SDK {
     if (event.cors === true) {
       cors = {
         path: subscribeEvent.path,
-        method: subscribeEvent.method
+        method: subscribeEvent.method,
+        metadata: this.metadata()
       }
     } else {
       if (event.cors) {
@@ -54,12 +72,14 @@ module.exports = class EGClient extends SDK {
           allowedOrigins: event.cors.origins,
           allowedMethods: event.cors.methods,
           allowedHeaders: event.cors.headers,
-          allowCredentials: event.cors.allowCredentials
+          allowCredentials: event.cors.allowCredentials,
+          metadata: this.metadata()
         }
       }
     }
 
     try {
+      subscribeEvent.metadata = this.metadata()
       await super.subscribe(subscribeEvent)
     } catch (err) {
       if (subscribeEvent.type === 'sync' && err.message.includes('already exists')) {
@@ -108,6 +128,13 @@ module.exports = class EGClient extends SDK {
       return subscriptions.filter(s => s.functionId.startsWith(`${this.service}-${this.stage}`))
     } catch (err) {
       return []
+    }
+  }
+
+  metadata () {
+    return {
+      service: this.service,
+      stage: this.stage
     }
   }
 }

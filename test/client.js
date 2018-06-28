@@ -23,6 +23,63 @@ describe('Event Gateway Client', () => {
     sandbox.restore()
   })
 
+  describe('createEventType', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'createEventType')
+    })
+
+    it('should add metadata with service and stage', () => {
+      SDK.prototype.createEventType.resolves()
+      const client = new Client({ url: 'http://localhost:4001' }, 'test', 'dev')
+
+      client.createEventType({ name: 'test' })
+
+      return expect(SDK.prototype.createEventType).to.calledWith({
+        name: 'test',
+        metadata: {
+          service: 'test',
+          stage: 'dev'
+        }
+      })
+    })
+  })
+
+  describe('updateEventType', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'updateEventType')
+      SDK.prototype.updateEventType.resolves()
+    })
+
+    it('should add metadata with service and stage', () => {
+      const client = new Client({ url: 'http://localhost:4001' }, 'test', 'dev')
+
+      client.updateEventType({ name: 'test' })
+
+      return expect(SDK.prototype.updateEventType).to.calledWith({
+        name: 'test',
+        metadata: {
+          service: 'test',
+          stage: 'dev'
+        }
+      })
+    })
+
+    it('should not override existing metadata', () => {
+      const client = new Client({ url: 'http://localhost:4001' }, 'test', 'dev')
+
+      client.updateEventType({ name: 'test', metadata: { foo: 'bar' } })
+
+      return expect(SDK.prototype.updateEventType).to.calledWith({
+        name: 'test',
+        metadata: {
+          service: 'test',
+          stage: 'dev',
+          foo: 'bar'
+        }
+      })
+    })
+  })
+
   describe('createFunction', () => {
     beforeEach(() => {
       sandbox.stub(SDK.prototype, 'createFunction')
@@ -34,7 +91,22 @@ describe('Event Gateway Client', () => {
 
       const result = client.createFunction({ functionId: 'test' })
 
-      return expect(result).to.eventually.be.rejectedWith(`Couldn't register a function test. Error`)
+      return expect(result).to.be.rejectedWith(`Couldn't register a function test. Error`)
+    })
+
+    it('should add metadata with service and stage', () => {
+      SDK.prototype.createFunction.resolves()
+      const client = new Client({ url: 'http://localhost:4001' }, 'test', 'dev')
+
+      client.createFunction({ functionId: 'test' })
+
+      return expect(SDK.prototype.createFunction).to.calledWith({
+        functionId: 'test',
+        metadata: {
+          service: 'test',
+          stage: 'dev'
+        }
+      })
     })
   })
 
@@ -93,7 +165,11 @@ describe('Event Gateway Client', () => {
         functionId: 'test',
         eventType: 'test.event',
         path: '/default/test',
-        method: 'POST'
+        method: 'POST',
+        metadata: {
+          service: 'testService',
+          stage: 'dev'
+        }
       })
     })
 
@@ -112,7 +188,11 @@ describe('Event Gateway Client', () => {
         functionId: 'test',
         eventType: 'http.request',
         path: '/default/test',
-        method: 'POST'
+        method: 'POST',
+        metadata: {
+          service: 'testService',
+          stage: 'dev'
+        }
       })
     })
 
@@ -141,7 +221,11 @@ describe('Event Gateway Client', () => {
         allowedOrigins: ['http://example.com'],
         allowedMethods: ['POST'],
         allowedHeaders: ['x-api-key'],
-        allowCredentials: true
+        allowCredentials: true,
+        metadata: {
+          service: 'testService',
+          stage: 'dev'
+        }
       })
     })
 
@@ -161,11 +245,15 @@ describe('Event Gateway Client', () => {
         functionId: 'test',
         eventType: 'test.event',
         path: '/default/test',
-        method: 'POST'
+        method: 'POST',
+        metadata: {
+          service: 'testService',
+          stage: 'dev'
+        }
       })
     })
 
-    it('should configure CORS', async () => {
+    it('should configure CORS (inclugin metadata)', async () => {
       SDK.prototype.subscribe.resolves()
       sandbox.stub(SDK.prototype, 'createCORS')
       const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
@@ -181,7 +269,11 @@ describe('Event Gateway Client', () => {
 
       return expect(SDK.prototype.createCORS).calledWith({
         method: 'POST',
-        path: '/default/test'
+        path: '/default/test',
+        metadata: {
+          service: 'testService',
+          stage: 'dev'
+        }
       })
     })
 
