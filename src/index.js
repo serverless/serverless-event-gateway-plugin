@@ -243,20 +243,20 @@ class EGPlugin {
 
     this.setupClient()
 
-    const registeredEventTypes = await this.client.listEventTypes()
+    const registeredEventTypes = await this.client.listServiceEventTypes()
     this.registerEventTypes(registeredEventTypes)
 
-    const localFunctions = this.filterFunctionsWithEvents()
-    if (localFunctions.length !== 0 || Object.keys(this.connectorFunctions).length !== 0) {
-      let registeredFunctions = await this.client.listServiceFunctions()
-      let registeredSubscriptions = await this.client.listServiceSubscriptions()
+    const localFunctions = this.functionsToRegister()
+    let registeredFunctions = await this.client.listServiceFunctions()
+    let registeredSubscriptions = await this.client.listServiceSubscriptions()
 
+    if (localFunctions.length !== 0 || Object.keys(this.connectorFunctions).length !== 0) {
       const outputs = await this.fetchStackOutputs()
 
       // Register missing functions and create missing subscriptions
       await Promise.all(
-        localFunctions.map(async name => {
-          const outputKey = this.awsProvider.naming.getLambdaVersionOutputLogicalId(name)
+        localFunctions.map(async localFunction => {
+          const outputKey = this.awsProvider.naming.getLambdaVersionOutputLogicalId(localFunction.name)
           const fullArn = outputs[outputKey]
           // Remove the function version from the ARN so that it always uses the latest version.
           const arn = fullArn
@@ -274,32 +274,31 @@ class EGPlugin {
               awsSecretAccessKey: outputs.EventGatewayUserSecretKey
             }
           }
-          const functionEvents = this.serverless.service
-            .getFunction(name)
-            .events.filter(f => f.eventgateway !== undefined)
 
           const registeredFunction = registeredFunctions.find(f => f.functionId === functionId)
           if (!registeredFunction) {
             // create function if doesn't exit
             await this.client.createFunction(fn)
-            this.serverless.cli.consoleLog(`EventGateway: Function "${name}" registered. (ID: ${fn.functionId})`)
+            this.serverless.cli.consoleLog(
+              `EventGateway: Function "${localFunction.name}" registered. (ID: ${fn.functionId})`
+            )
 
-            functionEvents.forEach(async event => {
+            for (let event of localFunction.events) {
               const subscription = event.eventgateway
               subscription.functionId = functionId
               await this.client.subscribeAndCreateCORS(subscription)
               this.serverless.cli.consoleLog(
-                `EventGateway: Function "${name}" subscribed to "${event.eventgateway.event ||
+                `EventGateway: Function "${localFunction.name}" subscribed to "${event.eventgateway.event ||
                   event.eventgateway.eventType}" event.`
               )
-            })
+            }
           } else {
             // remove function from functions array
             registeredFunctions = registeredFunctions.filter(f => f.functionId !== functionId)
 
             // update subscriptions
             let existingSubscriptions = registeredSubscriptions.filter(s => s.functionId === functionId)
-            functionEvents.forEach(async event => {
+            localFunction.events.forEach(async event => {
               event = event.eventgateway
               const existingSubscription = existingSubscriptions.find(existing =>
                 this.areSubscriptionsEqual(event, existing)
@@ -310,7 +309,8 @@ class EGPlugin {
                 event.functionId = functionId
                 await this.client.subscribeAndCreateCORS(event)
                 this.serverless.cli.consoleLog(
-                  `EventGateway: Function "${name}" subscribed to "${event.event || event.eventType}" event.`
+                  `EventGateway: Function "${localFunction.name}" subscribed to "${event.event ||
+                    event.eventType}" event.`
                 )
               } else {
                 existingSubscriptions = existingSubscriptions.filter(
@@ -325,94 +325,181 @@ class EGPlugin {
                 .unsubscribeAndDeleteCORS(sub)
                 .then(() =>
                   this.serverless.cli.consoleLog(
-                    `EventGateway: Function "${name}" unsubscribed from "${sub.event || sub.eventType}" event.`
+                    `EventGateway: Function "${localFunction.name}" unsubscribed from "${sub.event ||
+                      sub.eventType}" event.`
                   )
                 )
             )
             await Promise.all(subscriptionsToDelete)
           }
+
+          await this.updateEventTypesAuthorizers(localFunction.name, functionId)
         })
       )
 
-      for (let name in this.connectorFunctions) {
-        const cf = this.connectorFunctions[name]
-        const cfId = `${this.serverless.service.service}-${this.awsProvider.getStage()}-${name}`
-        const registeredFunction = registeredFunctions.find(f => f.functionId === cfId)
-        registeredFunctions = registeredFunctions.filter(f => f.functionId !== cfId)
-        if (!registeredFunction) {
-          await this.registerConnectorFunction(outputs, name, cf, cfId)
-          this.serverless.cli.consoleLog(`EventGateway: Function "${name}" registered. (ID: ${cfId})`)
-
-          if (!Array.isArray(cf.events)) continue
-
-          const events = cf.events.filter(eventObj => eventObj.eventgateway).map(eventObj => {
-            const subscription = eventObj.eventgateway
-            subscription.functionId = cfId
-            return this.client
-              .subscribeAndCreateCORS(subscription)
-              .then(() =>
-                this.serverless.cli.consoleLog(
-                  `EventGateway: Function "${name}" subscribed for "${eventObj.eventgateway.event} event.`
-                )
-              )
-          })
-          await Promise.all(events)
-        }
-      }
-
-      // Delete function and subscription no longer needed
-      registeredFunctions.forEach(async functionToDelete => {
-        const subscriptionsToDelete = registeredSubscriptions.filter(s => s.functionId === functionToDelete.functionId)
-        await Promise.all(subscriptionsToDelete.map(toDelete => this.client.unsubscribeAndDeleteCORS(toDelete)))
-
-        await this.client.deleteFunction({ functionId: functionToDelete.functionId })
-        this.serverless.cli.consoleLog(
-          `EventGateway: Function "${functionToDelete.functionId}" and it's subscriptions deleted.`
-        )
-      })
+      await this.registerConnectorFunctions(registeredFunctions, outputs)
     }
 
-    this.cleanupEventTypes(registeredEventTypes)
+    await this.cleanupFunctionsAndSubscriptions(registeredFunctions, registeredSubscriptions, registeredEventTypes)
+    await this.cleanupEventTypes(registeredEventTypes)
   }
 
+  async registerConnectorFunctions (registeredFunctions, outputs) {
+    for (let name in this.connectorFunctions) {
+      const cf = this.connectorFunctions[name]
+      const cfId = `${this.serverless.service.service}-${this.awsProvider.getStage()}-${name}`
+      const registeredFunction = registeredFunctions.find(f => f.functionId === cfId)
+      registeredFunctions = registeredFunctions.filter(f => f.functionId !== cfId)
+      if (!registeredFunction) {
+        await this.registerConnectorFunction(outputs, name, cf, cfId)
+        this.serverless.cli.consoleLog(`EventGateway: Function "${name}" registered. (ID: ${cfId})`)
+
+        if (!Array.isArray(cf.events)) continue
+
+        const events = cf.events.filter(eventObj => eventObj.eventgateway).map(eventObj => {
+          const subscription = eventObj.eventgateway
+          subscription.functionId = cfId
+          return this.client
+            .subscribeAndCreateCORS(subscription)
+            .then(() =>
+              this.serverless.cli.consoleLog(
+                `EventGateway: Function "${name}" subscribed for "${eventObj.eventgateway.event} event.`
+              )
+            )
+        })
+        await Promise.all(events)
+      }
+    }
+  }
+
+  updateEventTypesAuthorizers (name, functionId) {
+    return Promise.all(
+      this.definedEventTypes()
+        .filter(et => et.authorizer === name)
+        .map(et => {
+          return this.client.updateEventType({
+            name: et.name,
+            authorizerId: functionId
+          })
+        })
+    )
+  }
+
+  // cleanup function and subscription no longer defined in serverless.yaml
+  async cleanupFunctionsAndSubscriptions (functionsToDelete, registeredSubscriptions, registeredEventTypes) {
+    for (let functionToDelete of functionsToDelete) {
+      const subscriptionsToDelete = registeredSubscriptions.filter(s => s.functionId === functionToDelete.functionId)
+
+      await Promise.all(
+        subscriptionsToDelete.map(subscriptionToDelete => this.client.unsubscribeAndDeleteCORS(subscriptionToDelete))
+      )
+
+      const eventTypeWithAuth = registeredEventTypes.find(et => et.authorizerId === functionToDelete.functionId)
+      if (eventTypeWithAuth) {
+        await this.client.updateEventType({ name: eventTypeWithAuth.name })
+      }
+
+      await this.client.deleteFunction({ functionId: functionToDelete.functionId })
+      this.serverless.cli.consoleLog(
+        `EventGateway: Function "${functionToDelete.functionId}" and it's subscriptions deleted.`
+      )
+    }
+  }
+
+  // event typed defined in custom section
   definedEventTypes () {
     if (this.serverless.service.custom.eventTypes) {
       return Object.keys(this.serverless.service.custom.eventTypes).map(name => {
-        let authorizerId
-        if (this.serverless.service.custom.eventTypes[name]) {
-          authorizerId = this.serverless.service.custom.eventTypes[name].authorizerId
+        const eventTypes = this.serverless.service.custom.eventTypes
+        let authorizer
+
+        if (eventTypes[name]) {
+          const authorizerName = eventTypes[name].authorizer
+          if (authorizerName) {
+            if (this.serverless.service.functions[authorizerName]) {
+              authorizer = this.serverless.service.functions[authorizerName].name
+            } else {
+              throw new Error(`Authorizer function "${authorizerName}" is not defined.`)
+            }
+          }
         }
 
-        return { name, authorizerId }
+        return { name, authorizer }
       })
-    } else {
-      return []
     }
+    return []
   }
 
-  // register event types defined in serverless.yaml in EG
+  // event types used by subscriptions but not defined in custom section
+  usedEventTypes () {
+    const definedTypes = this.definedEventTypes()
+
+    const names = {}
+    this.functionsToRegister().forEach(localFunction => {
+      localFunction.events.forEach(event => {
+        if (event.eventgateway.eventType) {
+          names[event.eventgateway.eventType] = true
+        }
+        if (event.eventgateway.event) {
+          if (event.eventgateway.event === 'http') {
+            names['http.request'] = true
+          } else {
+            names[event.eventgateway.event] = true
+          }
+        }
+      })
+    })
+
+    const usedTypes = []
+    Object.keys(names).forEach(name => {
+      const definedType = definedTypes.find(t => t.name === name)
+      if (!definedType) {
+        usedTypes.push({ name })
+      }
+    })
+
+    return usedTypes
+  }
+
+  // register event types defined in serverless.yaml
   async registerEventTypes (registeredTypes) {
     const definedTypes = this.definedEventTypes()
 
     await Promise.all(
       definedTypes.map(async definedType => {
         const registeredType = registeredTypes.find(et => et.name === definedType.name)
-
         if (!registeredType) {
-          await this.client.createEventType(definedType)
+          await this.client.createEventType({ name: definedType.name })
           this.serverless.cli.consoleLog(`EventGateway: Event Type "${definedType.name}" created.`)
-        } else if (registeredType.authorizerId !== definedType.authorizerId) {
-          await this.client.updateEventType(definedType)
-          this.serverless.cli.consoleLog(`EventGateway: Event Type "${definedType.name}" updated.`)
+        }
+      })
+    )
+
+    const usedTypes = this.usedEventTypes()
+    await Promise.all(
+      usedTypes.map(async usedType => {
+        try {
+          await this.client.createEventType({ name: usedType.name })
+          this.serverless.cli.consoleLog(`EventGateway: Event Type "${usedType.name}" created.`)
+        } catch (err) {
+          if (!err.message.includes('already exists')) {
+            throw err
+          }
         }
       })
     )
   }
 
-  // delete types defined in EG not in the serverless.yaml
+  // cleanup types defined in EG not in the serverless.yaml
   async cleanupEventTypes (registeredTypes) {
     const definedTypes = this.definedEventTypes()
-    const toRemove = registeredTypes.filter(registeredType => !definedTypes.find(et => et.name === registeredType.name))
+    let toRemove = registeredTypes.filter(registeredType => !definedTypes.find(et => et.name === registeredType.name))
+
+    const usedTypes = this.usedEventTypes()
+    toRemove = toRemove.filter(registeredType => {
+      const isUsed = usedTypes.find(t => t.name === registeredType.name)
+      return !isUsed
+    })
 
     await Promise.all(
       toRemove.map(async eventType => {
@@ -475,18 +562,28 @@ class EGPlugin {
     }
   }
 
-  filterFunctionsWithEvents () {
+  // returns functions with EG subscription or authorizer
+  functionsToRegister () {
     const functions = []
+    const definedEventTypes = this.definedEventTypes()
+
     this.serverless.service.getAllFunctions().forEach(name => {
       const func = this.serverless.service.getFunction(name)
-      const events = func.events
+      func.name = name
 
-      if (!events) return
+      // functions with EG events
+      const eventgatewayEvents = func.events.filter(event => event.eventgateway)
+      if (eventgatewayEvents.length > 0) {
+        func.events = eventgatewayEvents
+        functions.push(func)
+        return
+      }
 
-      const eventgateway = events.find(event => event.eventgateway)
-      if (!eventgateway) return
-
-      functions.push(name)
+      // function is authorizer
+      const isAuthorizer = definedEventTypes.find(et => et.authorizer === func.name)
+      if (isAuthorizer) {
+        functions.push(func)
+      }
     })
 
     return functions
@@ -532,9 +629,9 @@ class EGPlugin {
   }
 
   addUserDefinition () {
-    const functionResources = this.filterFunctionsWithEvents().map(name => {
+    const functionResources = this.functionsToRegister().map(fn => {
       return {
-        'Fn::GetAtt': [this.awsProvider.naming.getLambdaLogicalId(name), 'Arn']
+        'Fn::GetAtt': [this.awsProvider.naming.getLambdaLogicalId(fn.name), 'Arn']
       }
     })
 

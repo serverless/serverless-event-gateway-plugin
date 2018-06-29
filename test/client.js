@@ -146,6 +146,27 @@ describe('Event Gateway Client', () => {
     })
   })
 
+  describe('listServiceEventTypes', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'listEventTypes')
+    })
+
+    it('should return function for specific service', () => {
+      SDK.prototype.listEventTypes.resolves([{ name: 'test1', metadata: { service: 'testService1', stage: 'dev' } }])
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService1', 'dev')
+
+      const result = client.listServiceEventTypes()
+
+      expect(SDK.prototype.listEventTypes).to.calledWith({
+        'metadata.service': 'testService1',
+        'metadata.stage': 'dev'
+      })
+      return expect(result).to.eventually.be.deep.equal([
+        { name: 'test1', metadata: { service: 'testService1', stage: 'dev' } }
+      ])
+    })
+  })
+
   describe('subscribeAndCreateCORS', () => {
     beforeEach(() => {
       sandbox.stub(SDK.prototype, 'subscribe')

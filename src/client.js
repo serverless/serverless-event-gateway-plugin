@@ -103,7 +103,7 @@ module.exports = class EGClient extends SDK {
     }
   }
 
-  async unsubscribeAndDeleteCORS (subscription) {
+  unsubscribeAndDeleteCORS (subscription) {
     return Promise.all([
       super.unsubscribe({ subscriptionId: subscription.subscriptionId }),
       super
@@ -129,6 +129,13 @@ module.exports = class EGClient extends SDK {
     } catch (err) {
       return []
     }
+  }
+
+  listServiceEventTypes () {
+    return this.listEventTypes({
+      'metadata.service': this.service,
+      'metadata.stage': this.stage
+    })
   }
 
   metadata () {
