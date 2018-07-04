@@ -68,7 +68,7 @@ describe('Event Gateway Plugin', () => {
       expect(emitArgs.eventType).to.equal('user.created')
       expect(emitArgs.cloudEventsVersion).to.equal('0.1')
       expect(emitArgs.source).to.equal('github.com/serverless/serverless-event-gateway-plugin')
-      expect(emitArgs.eventID).not.empty
+      expect(emitArgs.eventID).not.empty // eslint-disable-line
       expect(emitArgs.contentType).to.equal('application/json')
       expect(emitArgs.data).to.deep.equal({ foo: 'bar' })
     })
