@@ -151,7 +151,7 @@ class EGPlugin {
         eventID: uuidv4(),
         eventType: this.options.event,
         cloudEventsVersion: '0.1',
-        source: 'github.com/serverless/serverless-event-gateway-plugin',
+        source: 'https://github.com/serverless/serverless-event-gateway-plugin',
         contentType: 'application/json',
         data: JSON.parse(this.options.data)
       })
