@@ -14,7 +14,8 @@
     "@serverless/event-gateway-sdk": "^0.10.1",
     "chalk": "^2.3.0",
     "cli-table": "^0.3.1",
-    "lodash.merge": "^4.6.0"
+    "lodash.merge": "^4.6.0",
+    "uuid": "^3.3.2"
   },
   "devDependencies": {
     "chai": "^4.1.2",

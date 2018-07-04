@@ -1,6 +1,7 @@
 const merge = require('lodash.merge')
 const chalk = require('chalk')
 const Table = require('cli-table')
+const uuidv4 = require('uuid/v4')
 const Client = require('./client')
 
 class EGPlugin {
@@ -147,7 +148,11 @@ class EGPlugin {
     this.setupClient()
     this.client
       .emit({
-        event: this.options.event,
+        eventID: uuidv4(),
+        eventType: this.options.event,
+        cloudEventsVersion: '0.1',
+        source: 'github.com/serverless/serverless-event-gateway-plugin',
+        contentType: 'application/json',
         data: JSON.parse(this.options.data)
       })
       .then(() => {

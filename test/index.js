@@ -54,6 +54,26 @@ describe('Event Gateway Plugin', () => {
     sandbox.restore()
   })
 
+  describe('emit command', () => {
+    it('should emit an event', () => {
+      Client.prototype.emit.resolves()
+      const plugin = constructPlugin(serverlessStub, {
+        event: 'user.created',
+        data: `{"foo":"bar"}`
+      })
+
+      plugin.hooks['gateway:emit:emit']()
+
+      const emitArgs = Client.prototype.emit.lastCall.args[0]
+      expect(emitArgs.eventType).to.equal('user.created')
+      expect(emitArgs.cloudEventsVersion).to.equal('0.1')
+      expect(emitArgs.source).to.equal('github.com/serverless/serverless-event-gateway-plugin')
+      expect(emitArgs.eventID).not.empty
+      expect(emitArgs.contentType).to.equal('application/json')
+      expect(emitArgs.data).to.deep.equal({ foo: 'bar' })
+    })
+  })
+
   describe('event types', () => {
     it('should create event type if defined in eventTypes', async () => {
       // given
@@ -499,7 +519,7 @@ describe('Event Gateway Plugin', () => {
   })
 })
 
-const constructPlugin = serverless => {
+const constructPlugin = (serverless, options) => {
   serverless = merge(
     {
       cli: {
@@ -515,5 +535,5 @@ const constructPlugin = serverless => {
     serverless
   )
 
-  return new Plugin(serverless, {})
+  return new Plugin(serverless, options)
 }
