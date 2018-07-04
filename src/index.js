@@ -169,7 +169,7 @@ class EGPlugin {
     const unsubList = subscriptions.map(sub =>
       this.client.unsubscribeAndDeleteCORS(sub).then(() => {
         this.serverless.cli.consoleLog(
-          `EventGateway: Subscription "${sub.event}" removed from function: ${sub.functionId}`
+          `EventGateway: Subscription "${sub.eventType}" removed from function: ${sub.functionId}`
         )
       })
     )
