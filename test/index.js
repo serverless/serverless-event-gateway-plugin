@@ -23,10 +23,9 @@ describe('Event Gateway Plugin', () => {
 
     serverlessStub = {
       service: {
-        service: 'test',
+        service: 'testService',
         custom: { eventgateway: { url: 'http://localhost:4001' } },
-        functions: {},
-        getAllFunctions: sandbox.stub().returns([])
+        functions: {}
       },
       getProvider: sandbox.stub().returns({
         getStage: sinon.stub().returns('dev'),
@@ -41,7 +40,10 @@ describe('Event Gateway Plugin', () => {
               Outputs: [
                 { OutputKey: 'EventGatewayUserAccessKey', OutputValue: 'ak' },
                 { OutputKey: 'EventGatewayUserSecretKey', OutputValue: 'sk' },
-                { OutputKey: 'TestLambda', OutputValue: 'arn:aws:lambda:us-east-1:123:function:test-dev-testFunc' }
+                {
+                  OutputKey: 'TestLambda',
+                  OutputValue: 'arn:aws:lambda:us-east-1:123:function:testService-dev-testFunc'
+                }
               ]
             }
           ]
@@ -74,7 +76,53 @@ describe('Event Gateway Plugin', () => {
     })
   })
 
+  describe('functions', () => {
+    beforeEach(() => {
+      serverlessStub.service.functions = {
+        testFunc: {
+          name: 'testService-dev-testFunc',
+          handler: 'test',
+          events: [{ eventgateway: { type: 'async', eventType: 'test.event' } }]
+        }
+      }
+    })
+
+    it('should register a function', async () => {
+      // given
+      Client.prototype.listServiceFunctions.resolves([])
+      Client.prototype.listServiceEventTypes.resolves([])
+      Client.prototype.subscribeAndCreateCORS.resolves()
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['after:deploy:finalize']()
+
+      // then
+      return expect(Client.prototype.createFunction).calledWith({
+        functionId: 'testService-dev-testFunc',
+        provider: {
+          arn: 'arn:aws:lambda:us-east-1:123:function:testService-dev-testFunc',
+          awsAccessKeyId: 'ak',
+          awsSecretAccessKey: 'sk',
+          region: 'us-east-1'
+        },
+        type: 'awslambda'
+      })
+    })
+  })
+
   describe('event types', () => {
+    beforeEach(() => {
+      serverlessStub.service.functions = {
+        testFunc: {
+          name: 'testService-dev-testFunc',
+          handler: 'test',
+          events: [{ eventgateway: { type: 'async', eventType: 'test.event' } }]
+        }
+      }
+    })
+
     it('should create event type if defined in eventTypes', async () => {
       // given
       serverlessStub.service.custom.eventTypes = { 'test.event': null }
@@ -94,14 +142,6 @@ describe('Event Gateway Plugin', () => {
       // given
       Client.prototype.listServiceFunctions.resolves([])
       Client.prototype.listServiceEventTypes.resolves([])
-      serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
-      serverlessStub.service.getFunction = sinon
-        .stub()
-        .withArgs('test-dev-testFunc')
-        .returns({
-          handler: 'index.test',
-          events: [{ eventgateway: { type: 'async', eventType: 'test.event' } }]
-        })
       const plugin = constructPlugin(serverlessStub)
 
       // when
@@ -136,14 +176,6 @@ describe('Event Gateway Plugin', () => {
         { name: 'test.event', metadata: { service: 'test', stage: 'dev' } },
         { name: 'test.event.notused', metadata: { service: 'test', stage: 'dev' } }
       ])
-      serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
-      serverlessStub.service.getFunction = sinon
-        .stub()
-        .withArgs('test-dev-testFunc')
-        .returns({
-          handler: 'index.test',
-          events: [{ eventgateway: { type: 'async', eventType: 'test.event' } }]
-        })
       const plugin = constructPlugin(serverlessStub)
 
       // when
@@ -162,17 +194,6 @@ describe('Event Gateway Plugin', () => {
       Client.prototype.listServiceEventTypes.resolves([])
       Client.prototype.listServiceFunctions.resolves([])
       Client.prototype.createEventType.resolves()
-      serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
-      serverlessStub.service.getFunction = sinon
-        .stub()
-        .withArgs('test-dev-testFunc')
-        .returns({ handler: 'index.test', events: [] })
-      serverlessStub.service.functions = {
-        testFunc: {
-          name: 'test-dev-testFunc',
-          handler: 'test'
-        }
-      }
       const plugin = constructPlugin(serverlessStub)
 
       // when
@@ -182,7 +203,7 @@ describe('Event Gateway Plugin', () => {
       // then
       return expect(Client.prototype.updateEventType).calledWith({
         name: 'test.event',
-        authorizerId: 'test-dev-testFunc'
+        authorizerId: 'testService-dev-testFunc'
       })
     })
   })
@@ -318,6 +339,7 @@ describe('Event Gateway Plugin', () => {
       // given
       serverlessStub.service.functions = {
         saveToKinesis: {
+          name: 'testService-dev-saveToKinesis',
           type: 'awskinesis',
           inputs: { arn: 'fakearn', streamName: 'testStream' },
           events: [{ eventgateway: { event: 'test.tested' } }]
@@ -333,7 +355,7 @@ describe('Event Gateway Plugin', () => {
 
       // then
       return expect(Client.prototype.createFunction).calledWith({
-        functionId: 'test-dev-saveToKinesis',
+        functionId: 'testService-dev-saveToKinesis',
         provider: { streamName: 'testStream', awsAccessKeyId: 'ak', awsSecretAccessKey: 'sk', region: 'us-east-1' },
         type: 'awskinesis'
       })
@@ -390,6 +412,14 @@ describe('Event Gateway Plugin', () => {
     beforeEach(() => {
       Client.prototype.listServiceEventTypes.resolves([])
       Client.prototype.listServiceFunctions.resolves([])
+
+      serverlessStub.service.functions = {
+        testFunc: {
+          name: 'testService-dev-testFunc',
+          handler: 'test',
+          events: [{ eventgateway: { type: 'async', eventType: 'user.created', path: '/hello1', method: 'GET' } }]
+        }
+      }
     })
 
     it('should recreate subscription if path changed', async () => {
@@ -405,14 +435,6 @@ describe('Event Gateway Plugin', () => {
       Client.prototype.unsubscribeAndDeleteCORS.resolves()
       Client.prototype.listServiceSubscriptions.resolves([existingSubscription])
       Client.prototype.listServiceFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
-      serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
-      serverlessStub.service.getFunction = sinon
-        .stub()
-        .withArgs('test-dev-testFunc')
-        .returns({
-          handler: 'index.test',
-          events: [{ eventgateway: { type: 'async', eventType: 'user.created', path: '/hello1', method: 'GET' } }]
-        })
       const plugin = constructPlugin(serverlessStub)
 
       // when
@@ -424,7 +446,7 @@ describe('Event Gateway Plugin', () => {
       return expect(Client.prototype.subscribeAndCreateCORS).calledWith({
         type: 'async',
         eventType: 'user.created',
-        functionId: 'test-dev-testFunc',
+        functionId: 'testService-dev-testFunc',
         method: 'GET',
         path: '/hello1'
       })
@@ -433,14 +455,13 @@ describe('Event Gateway Plugin', () => {
     describe('legacy mode (old subscription format support)', () => {
       it('should create http subscription', async () => {
         // given
-        serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
-        serverlessStub.service.getFunction = sinon
-          .stub()
-          .withArgs('test-dev-testFunc')
-          .returns({
-            handler: 'index.test',
+        serverlessStub.service.functions = {
+          testFunc: {
+            name: 'testService-dev-testFunc',
+            handler: 'test',
             events: [{ eventgateway: { event: 'http', path: '/hello', method: 'get' } }]
-          })
+          }
+        }
         const plugin = constructPlugin(serverlessStub)
 
         // when
@@ -450,7 +471,7 @@ describe('Event Gateway Plugin', () => {
         // then
         return expect(Client.prototype.subscribeAndCreateCORS).calledWith({
           event: 'http',
-          functionId: 'test-dev-testFunc',
+          functionId: 'testService-dev-testFunc',
           method: 'get',
           path: '/hello'
         })
@@ -461,21 +482,13 @@ describe('Event Gateway Plugin', () => {
         Client.prototype.listFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
         Client.prototype.listSubscriptions.resolves([
           {
-            functionId: 'test-dev-testFunc',
+            functionId: 'testService-dev-testFunc',
             eventType: 'http.request',
             type: 'sync',
             path: '/default/hello',
             method: 'POST'
           }
         ])
-        serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
-        serverlessStub.service.getFunction = sinon
-          .stub()
-          .withArgs('test-dev-testFunc')
-          .returns({
-            handler: 'index.test',
-            events: [{ eventgateway: { event: 'http', path: '/hello', method: 'POST' } }]
-          })
         const plugin = constructPlugin(serverlessStub)
 
         // when
@@ -498,14 +511,6 @@ describe('Event Gateway Plugin', () => {
             method: 'POST'
           }
         ])
-        serverlessStub.service.getAllFunctions = sinon.stub().returns(['test-dev-testFunc'])
-        serverlessStub.service.getFunction = sinon
-          .stub()
-          .withArgs('test-dev-testFunc')
-          .returns({
-            handler: 'index.test',
-            events: [{ eventgateway: { event: 'user.created' } }]
-          })
         const plugin = constructPlugin(serverlessStub)
 
         // when

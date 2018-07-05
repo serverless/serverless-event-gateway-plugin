@@ -251,17 +251,17 @@ class EGPlugin {
     const registeredEventTypes = await this.client.listServiceEventTypes()
     this.registerEventTypes(registeredEventTypes)
 
-    const localFunctions = this.functionsToRegister()
+    const definedFunctions = this.definedFunctions()
     let registeredFunctions = await this.client.listServiceFunctions()
     let registeredSubscriptions = await this.client.listServiceSubscriptions()
 
-    if (localFunctions.length !== 0 || Object.keys(this.connectorFunctions).length !== 0) {
+    if (definedFunctions.length !== 0 || Object.keys(this.connectorFunctions).length !== 0) {
       const outputs = await this.fetchStackOutputs()
 
       // Register missing functions and create missing subscriptions
       await Promise.all(
-        localFunctions.map(async localFunction => {
-          const outputKey = this.awsProvider.naming.getLambdaVersionOutputLogicalId(localFunction.name)
+        definedFunctions.map(async definedFunction => {
+          const outputKey = this.awsProvider.naming.getLambdaVersionOutputLogicalId(definedFunction.key)
           const fullArn = outputs[outputKey]
           // Remove the function version from the ARN so that it always uses the latest version.
           const arn = fullArn
@@ -285,16 +285,15 @@ class EGPlugin {
             // create function if doesn't exit
             await this.client.createFunction(fn)
             this.serverless.cli.consoleLog(
-              `EventGateway: Function "${localFunction.name}" registered. (ID: ${fn.functionId})`
+              `EventGateway: Function "${definedFunction.key}" registered. (ID: ${fn.functionId})`
             )
 
-            for (let event of localFunction.events) {
-              const subscription = event.eventgateway
-              subscription.functionId = functionId
-              await this.client.subscribeAndCreateCORS(subscription)
+            for (let event of definedFunction.events) {
+              event.functionId = functionId
+              await this.client.subscribeAndCreateCORS(event)
               this.serverless.cli.consoleLog(
-                `EventGateway: Function "${localFunction.name}" subscribed to "${event.eventgateway.event ||
-                  event.eventgateway.eventType}" event.`
+                `EventGateway: Function "${definedFunction.key}" subscribed to "${event.event ||
+                  event.eventType}" event.`
               )
             }
           } else {
@@ -303,8 +302,7 @@ class EGPlugin {
 
             // update subscriptions
             let existingSubscriptions = registeredSubscriptions.filter(s => s.functionId === functionId)
-            localFunction.events.forEach(async event => {
-              event = event.eventgateway
+            definedFunction.events.forEach(async event => {
               const existingSubscription = existingSubscriptions.find(existing =>
                 this.areSubscriptionsEqual(event, existing)
               )
@@ -314,7 +312,7 @@ class EGPlugin {
                 event.functionId = functionId
                 await this.client.subscribeAndCreateCORS(event)
                 this.serverless.cli.consoleLog(
-                  `EventGateway: Function "${localFunction.name}" subscribed to "${event.event ||
+                  `EventGateway: Function "${definedFunction.key}" subscribed to "${event.event ||
                     event.eventType}" event.`
                 )
               } else {
@@ -330,7 +328,7 @@ class EGPlugin {
                 .unsubscribeAndDeleteCORS(sub)
                 .then(() =>
                   this.serverless.cli.consoleLog(
-                    `EventGateway: Function "${localFunction.name}" unsubscribed from "${sub.event ||
+                    `EventGateway: Function "${definedFunction.key}" unsubscribed from "${sub.event ||
                       sub.eventType}" event.`
                   )
                 )
@@ -338,7 +336,7 @@ class EGPlugin {
             await Promise.all(subscriptionsToDelete)
           }
 
-          await this.updateEventTypesAuthorizers(localFunction.name, functionId)
+          await this.updateEventTypesAuthorizers(definedFunction.name, functionId)
         })
       )
 
@@ -377,10 +375,10 @@ class EGPlugin {
     }
   }
 
-  updateEventTypesAuthorizers (name, functionId) {
+  updateEventTypesAuthorizers (key, functionId) {
     return Promise.all(
       this.definedEventTypes()
-        .filter(et => et.authorizer === name)
+        .filter(et => et.authorizer === key)
         .map(et => {
           return this.client.updateEventType({
             name: et.name,
@@ -440,16 +438,16 @@ class EGPlugin {
     const definedTypes = this.definedEventTypes()
 
     const names = {}
-    this.functionsToRegister().forEach(localFunction => {
+    this.definedFunctions().forEach(localFunction => {
       localFunction.events.forEach(event => {
-        if (event.eventgateway.eventType) {
-          names[event.eventgateway.eventType] = true
+        if (event.eventType) {
+          names[event.eventType] = true
         }
-        if (event.eventgateway.event) {
-          if (event.eventgateway.event === 'http') {
+        if (event.event) {
+          if (event.event === 'http') {
             names['http.request'] = true
           } else {
-            names[event.eventgateway.event] = true
+            names[event.event] = true
           }
         }
       })
@@ -568,24 +566,25 @@ class EGPlugin {
   }
 
   // returns functions with EG subscription or authorizer
-  functionsToRegister () {
+  definedFunctions () {
     const functions = []
     const definedEventTypes = this.definedEventTypes()
 
-    this.serverless.service.getAllFunctions().forEach(name => {
-      const func = this.serverless.service.getFunction(name)
-      func.name = name
+    Object.keys(this.serverless.service.functions).forEach(key => {
+      // clone object
+      const func = Object.assign({}, this.serverless.service.functions[key])
+      func.key = key
 
       // functions with EG events
-      const eventgatewayEvents = func.events.filter(event => event.eventgateway)
-      if (eventgatewayEvents.length > 0) {
-        func.events = eventgatewayEvents
+      const egEvents = func.events.filter(event => event.eventgateway).map(event => event.eventgateway)
+      if (egEvents.length > 0) {
+        func.events = egEvents
         functions.push(func)
         return
       }
 
       // function is authorizer
-      const isAuthorizer = definedEventTypes.find(et => et.authorizer === func.name)
+      const isAuthorizer = definedEventTypes.find(et => et.authorizer === func.key)
       if (isAuthorizer) {
         functions.push(func)
       }
@@ -634,9 +633,9 @@ class EGPlugin {
   }
 
   addUserDefinition () {
-    const functionResources = this.functionsToRegister().map(fn => {
+    const functionResources = this.definedFunctions().map(fn => {
       return {
-        'Fn::GetAtt': [this.awsProvider.naming.getLambdaLogicalId(fn.name), 'Arn']
+        'Fn::GetAtt': [this.awsProvider.naming.getLambdaLogicalId(fn.key), 'Arn']
       }
     })
 
