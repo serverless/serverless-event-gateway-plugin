@@ -123,7 +123,7 @@ describe('Event Gateway Plugin', () => {
       }
     })
 
-    it('should create event type if defined in eventTypes', async () => {
+    it('should create event type if defined in eventTypes in configuration', async () => {
       // given
       serverlessStub.service.custom.eventTypes = { 'test.event': null }
       Client.prototype.listServiceEventTypes.resolves([])
@@ -152,7 +152,7 @@ describe('Event Gateway Plugin', () => {
       return expect(Client.prototype.createEventType).calledWith({ name: 'test.event' })
     })
 
-    it('should remove event types no longer defined in the configuration', async () => {
+    it('should remove event types no longer defined in configuration', async () => {
       // given
       serverlessStub.service.custom.eventTypes = { 'test.event': {} }
       Client.prototype.listServiceFunctions.resolves([])
@@ -205,6 +205,24 @@ describe('Event Gateway Plugin', () => {
         name: 'test.event',
         authorizerId: 'testService-dev-testFunc'
       })
+    })
+
+    it('should update with metadata if defined in configuration and does not have service assigned', async () => {
+      // given
+      serverlessStub.service.custom.eventTypes = { 'test.event': {} }
+      Client.prototype.listServiceEventTypes.resolves([])
+      Client.prototype.listEventTypes.resolves([{ name: 'test.event' }])
+      Client.prototype.listServiceFunctions.resolves([])
+      Client.prototype.createEventType.rejects(new Error('already exists'))
+      Client.prototype.updateEventType.resolves()
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['after:deploy:finalize']()
+
+      // then
+      return expect(Client.prototype.updateEventType).calledWith({ name: 'test.event' })
     })
   })
 

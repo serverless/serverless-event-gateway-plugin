@@ -472,8 +472,19 @@ class EGPlugin {
       definedTypes.map(async definedType => {
         const registeredType = registeredTypes.find(et => et.name === definedType.name)
         if (!registeredType) {
-          await this.client.createEventType({ name: definedType.name })
-          this.serverless.cli.consoleLog(`EventGateway: Event Type "${definedType.name}" created.`)
+          try {
+            await this.client.createEventType({ name: definedType.name })
+            this.serverless.cli.consoleLog(`EventGateway: Event Type "${definedType.name}" created.`)
+          } catch (err) {
+            // if event type already exists and it has no metadata assign it to the current service
+            if (err.message.includes('already exists')) {
+              const eventTypes = await this.client.listEventTypes()
+              const eventType = eventTypes.find(et => et.name === definedType.name)
+              if (eventType && !eventType.metadata) {
+                await this.client.updateEventType(eventType)
+              }
+            }
+          }
         }
       })
     )
@@ -485,6 +496,7 @@ class EGPlugin {
           await this.client.createEventType({ name: usedType.name })
           this.serverless.cli.consoleLog(`EventGateway: Event Type "${usedType.name}" created.`)
         } catch (err) {
+          // ignore already existing event type
           if (!err.message.includes('already exists')) {
             throw err
           }
