@@ -32,6 +32,17 @@ module.exports = class EGClient extends SDK {
     }
   }
 
+  async updateFunction (fn) {
+    if (!fn.metadata) {
+      fn.metadata = this.metadata()
+    } else {
+      const { service, stage } = this.metadata()
+      fn.metadata.service = service
+      fn.metadata.stage = stage
+    }
+    return super.updateFunction(fn)
+  }
+
   async subscribeAndCreateCORS (event) {
     const toUpperCase = str => (str instanceof String ? str.toUpperCase() : str)
 

@@ -25,14 +25,20 @@ describe('Event Gateway Plugin', () => {
       service: {
         service: 'testService',
         custom: { eventgateway: { url: 'http://localhost:4001' } },
-        functions: {}
+        functions: {},
+        provider: {
+          compiledCloudFormationTemplate: {
+            Resources: {}
+          }
+        }
       },
       getProvider: sandbox.stub().returns({
         getStage: sinon.stub().returns('dev'),
         getRegion: sinon.stub().returns('us-east-1'),
         naming: {
           getStackName: sinon.stub().returns('stackname'),
-          getLambdaVersionOutputLogicalId: sinon.stub().returns('TestLambda')
+          getLambdaVersionOutputLogicalId: sinon.stub().returns('TestLambda'),
+          getLambdaLogicalId: sinon.stub().returns('TestLambdaFunction')
         },
         request: sinon.stub().resolves({
           Stacks: [
@@ -54,6 +60,66 @@ describe('Event Gateway Plugin', () => {
 
   afterEach(() => {
     sandbox.restore()
+  })
+
+  describe('addUserResource', () => {
+    it('should add user definition to CF template', () => {
+      // given
+      serverlessStub.service.functions = {
+        testFunc: {
+          name: 'testService-dev-testFunc',
+          handler: 'test',
+          events: [{ eventgateway: { type: 'async', eventType: 'test.event' } }]
+        }
+      }
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      plugin.hooks['package:compileEvents']()
+
+      // then
+      const resources = plugin.serverless.service.provider.compiledCloudFormationTemplate.Resources
+      expect(resources.EventGatewayUser).to.deep.equal({ Type: 'AWS::IAM::User' })
+      expect(resources.EventGatewayUserKeys).to.deep.equal({
+        Type: 'AWS::IAM::AccessKey',
+        Properties: { UserName: { Ref: 'EventGatewayUser' } }
+      })
+    })
+
+    it('should add user with policy to invoke awslambda functions', () => {
+      // given
+      serverlessStub.service.functions = {
+        testFunc: {
+          name: 'testService-dev-testFunc',
+          handler: 'test',
+          events: [{ eventgateway: { type: 'async', eventType: 'test.event' } }]
+        },
+        saveToKinesis: {
+          name: 'testService-dev-saveToKinesis',
+          type: 'awskinesis',
+          inputs: { arn: 'fakearn', streamName: 'testStream' },
+          events: [{ eventgateway: { event: 'test.tested' } }]
+        }
+      }
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      plugin.hooks['package:compileEvents']()
+
+      // then
+      const resources = plugin.serverless.service.provider.compiledCloudFormationTemplate.Resources
+      expect(resources.EventGatewayUserPolicy.Properties.PolicyDocument.Statement[1]).to.deep.equal({
+        Action: ['lambda:InvokeFunction'],
+        Effect: 'Allow',
+        Resource: [
+          {
+            'Fn::GetAtt': ['TestLambdaFunction', 'Arn']
+          }
+        ]
+      })
+    })
   })
 
   describe('emit command', () => {
@@ -78,6 +144,11 @@ describe('Event Gateway Plugin', () => {
 
   describe('functions', () => {
     beforeEach(() => {
+      Client.prototype.listServiceEventTypes.resolves([])
+    })
+
+    it('should register awslambda function', async () => {
+      // given
       serverlessStub.service.functions = {
         testFunc: {
           name: 'testService-dev-testFunc',
@@ -85,12 +156,7 @@ describe('Event Gateway Plugin', () => {
           events: [{ eventgateway: { type: 'async', eventType: 'test.event' } }]
         }
       }
-    })
-
-    it('should register a function', async () => {
-      // given
       Client.prototype.listServiceFunctions.resolves([])
-      Client.prototype.listServiceEventTypes.resolves([])
       Client.prototype.subscribeAndCreateCORS.resolves()
       const plugin = constructPlugin(serverlessStub)
 
@@ -108,6 +174,216 @@ describe('Event Gateway Plugin', () => {
           region: 'us-east-1'
         },
         type: 'awslambda'
+      })
+    })
+
+    it('should update existing function', async () => {
+      // given
+      serverlessStub.service.functions = {
+        testFunc: {
+          name: 'testService-dev-testFunc',
+          handler: 'test',
+          events: [{ eventgateway: { type: 'async', eventType: 'test.event' } }]
+        }
+      }
+      Client.prototype.listServiceSubscriptions.resolves([])
+      Client.prototype.listServiceFunctions.resolves([
+        {
+          functionId: 'testService-dev-testFunc',
+          type: 'awskinesis',
+          provider: { streamName: 'foo', region: 'bar' }
+        }
+      ])
+      Client.prototype.subscribeAndCreateCORS.resolves()
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['after:deploy:finalize']()
+
+      // then
+      return expect(Client.prototype.updateFunction).calledWith({
+        functionId: 'testService-dev-testFunc',
+        provider: {
+          arn: 'arn:aws:lambda:us-east-1:123:function:testService-dev-testFunc',
+          awsAccessKeyId: 'ak',
+          awsSecretAccessKey: 'sk',
+          region: 'us-east-1'
+        },
+        type: 'awslambda'
+      })
+    })
+
+    describe('connector functions', () => {
+      beforeEach(() => {
+        Client.prototype.listServiceEventTypes.resolves([])
+      })
+
+      it('should register awskinesis function', async () => {
+        // given
+        serverlessStub.service.functions = {
+          saveToKinesis: {
+            name: 'testService-dev-saveToKinesis',
+            type: 'awskinesis',
+            inputs: { arn: 'fakearn', streamName: 'testStream' },
+            events: [{ eventgateway: { event: 'test.tested' } }]
+          }
+        }
+        Client.prototype.listServiceFunctions.resolves([])
+        Client.prototype.subscribeAndCreateCORS.resolves()
+        const plugin = constructPlugin(serverlessStub)
+
+        // when
+        plugin.hooks['package:initialize']()
+        await plugin.hooks['after:deploy:finalize']()
+
+        // then
+        return expect(Client.prototype.createFunction).calledWith({
+          functionId: 'testService-dev-saveToKinesis',
+          provider: { streamName: 'testStream', awsAccessKeyId: 'ak', awsSecretAccessKey: 'sk', region: 'us-east-1' },
+          type: 'awskinesis'
+        })
+      })
+
+      it('should throw an error if connector function has no inputs', async () => {
+        const funcName = 'saveToSQS'
+        const funcType = 'awssqs'
+        const inputName = 'queueUrl'
+        const func = {
+          type: funcType,
+          inputs: {},
+          events: [{ eventgateway: { event: 'test.tested' } }]
+        }
+        serverlessStub.service.functions = {}
+        serverlessStub.service.functions[funcName] = func
+
+        const plugin = constructPlugin(serverlessStub)
+        Client.prototype.createFunction.rejects('Error')
+
+        return expect(plugin.hooks['package:initialize']).to.throw(
+          `Invalid inputs for ${funcType} function "${funcName}". ` +
+            `You provided none. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
+        )
+      })
+
+      it('should throw an error if awskinesis function has only arn in inputs', async () => {
+        const funcName = 'saveToKinesis'
+        const funcType = 'awskinesis'
+        const inputName = 'arn'
+        const func = {
+          type: funcType,
+          inputs: {},
+          events: [{ eventgateway: { event: 'test.tested' } }]
+        }
+        serverlessStub.service.functions = {}
+        serverlessStub.service.functions[funcName] = func
+        serverlessStub.service.functions[funcName].inputs[inputName] = 'exampleinput'
+
+        const plugin = constructPlugin(serverlessStub)
+        Client.prototype.createFunction.rejects('Error')
+
+        return expect(plugin.hooks['package:initialize']).to.throw(
+          `Invalid inputs for ${funcType} function "${funcName}". ` +
+            `You provided ${Object.keys(func.inputs)
+              .map(i => `"${i}"`)
+              .join(', ')}. Please provide either "logicalId" or both "arn" and "streamName" inputs.`
+        )
+      })
+
+      it('should throw an error if awskinesis function has incomplete inputs', async () => {
+        const funcName = 'saveToKinesis'
+        const funcType = 'awskinesis'
+        const inputName = 'streamName'
+        const func = {
+          type: funcType,
+          inputs: {},
+          events: [{ eventgateway: { event: 'test.tested' } }]
+        }
+        serverlessStub.service.functions = {}
+        serverlessStub.service.functions[funcName] = func
+        serverlessStub.service.functions[funcName].inputs[inputName] = 'exampleinput'
+
+        const plugin = constructPlugin(serverlessStub)
+        Client.prototype.createFunction.rejects('Error')
+
+        return expect(plugin.hooks['package:initialize']).to.throw(
+          `Invalid inputs for ${funcType} function "${funcName}". ` +
+            `You provided ${Object.keys(func.inputs)
+              .map(i => `"${i}"`)
+              .join(', ')}. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
+        )
+      })
+
+      it('should throw an error if awsfirehose function has incomplete inputs', async () => {
+        const funcName = 'saveToFirehose'
+        const funcType = 'awsfirehose'
+        const inputName = 'deliveryStreamName'
+        const func = {
+          type: funcType,
+          inputs: {},
+          events: [{ eventgateway: { event: 'test.tested' } }]
+        }
+        serverlessStub.service.functions = {}
+        serverlessStub.service.functions[funcName] = func
+        serverlessStub.service.functions[funcName].inputs[inputName] = 'exampleinput'
+
+        const plugin = constructPlugin(serverlessStub)
+        Client.prototype.createFunction.rejects('Error')
+
+        return expect(plugin.hooks['package:initialize']).to.throw(
+          `Invalid inputs for ${funcType} function "${funcName}". ` +
+            `You provided ${Object.keys(func.inputs)
+              .map(i => `"${i}"`)
+              .join(', ')}. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
+        )
+      })
+
+      it('should throw an error if awssqs function has incomplete inputs', async () => {
+        const funcName = 'saveToSQS'
+        const funcType = 'awssqs'
+        const inputName = 'queueUrl'
+        const func = {
+          type: funcType,
+          inputs: {},
+          events: [{ eventgateway: { event: 'test.tested' } }]
+        }
+        serverlessStub.service.functions = {}
+        serverlessStub.service.functions[funcName] = func
+        serverlessStub.service.functions[funcName].inputs[inputName] = 'exampleinput'
+
+        const plugin = constructPlugin(serverlessStub)
+        Client.prototype.createFunction.rejects('Error')
+
+        return expect(plugin.hooks['package:initialize']).to.throw(
+          `Invalid inputs for ${funcType} function "${funcName}". ` +
+            `You provided ${Object.keys(func.inputs)
+              .map(i => `"${i}"`)
+              .join(', ')}. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
+        )
+      })
+
+      it('should prepare correct IAM Policies', async () => {
+        // given
+        const arn = 'fakearn'
+        serverlessStub.service.functions = {
+          saveToKinesis: {
+            type: 'awskinesis',
+            inputs: { arn: arn, streamName: 'testStream' },
+            events: [{ eventgateway: { event: 'test.tested' } }]
+          }
+        }
+        const plugin = constructPlugin(serverlessStub)
+
+        // when
+        plugin.hooks['package:initialize']()
+
+        // then
+        const expectedIAMPolicy = {
+          Effect: 'Allow',
+          Action: ['kinesis:PutRecord'],
+          Resource: arn
+        }
+        return expect(plugin.requiredIAMPolicies[arn]).to.deep.equal(expectedIAMPolicy)
       })
     })
   })
@@ -223,206 +499,6 @@ describe('Event Gateway Plugin', () => {
 
       // then
       return expect(Client.prototype.updateEventType).calledWith({ name: 'test.event' })
-    })
-  })
-
-  describe('connector functions', () => {
-    beforeEach(() => {
-      Client.prototype.listServiceEventTypes.resolves([])
-    })
-
-    it('should throw error if connector function has no inputs', async () => {
-      // given
-      const funcName = 'saveToSQS'
-      const funcType = 'awssqs'
-      const inputName = 'queueUrl'
-      const func = {
-        type: funcType,
-        inputs: {},
-        events: [{ eventgateway: { event: 'test.tested' } }]
-      }
-      serverlessStub.service.functions = {}
-      serverlessStub.service.functions[funcName] = func
-
-      const plugin = constructPlugin(serverlessStub)
-      Client.prototype.createFunction.rejects('Error')
-
-      return expect(plugin.hooks['package:initialize']).to.throw(
-        `Invalid inputs for ${funcType} function "${funcName}". ` +
-          `You provided none. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
-      )
-    })
-
-    it('should throw error if awskinesis function has only arn in inputs', async () => {
-      // given
-      const funcName = 'saveToKinesis'
-      const funcType = 'awskinesis'
-      const inputName = 'arn'
-      const func = {
-        type: funcType,
-        inputs: {},
-        events: [{ eventgateway: { event: 'test.tested' } }]
-      }
-      serverlessStub.service.functions = {}
-      serverlessStub.service.functions[funcName] = func
-      serverlessStub.service.functions[funcName].inputs[inputName] = 'exampleinput'
-
-      const plugin = constructPlugin(serverlessStub)
-      Client.prototype.createFunction.rejects('Error')
-
-      return expect(plugin.hooks['package:initialize']).to.throw(
-        `Invalid inputs for ${funcType} function "${funcName}". ` +
-          `You provided ${Object.keys(func.inputs)
-            .map(i => `"${i}"`)
-            .join(', ')}. Please provide either "logicalId" or both "arn" and "streamName" inputs.`
-      )
-    })
-
-    it('should throw error if awskinesis function has incomplete inputs', async () => {
-      // given
-      const funcName = 'saveToKinesis'
-      const funcType = 'awskinesis'
-      const inputName = 'streamName'
-      const func = {
-        type: funcType,
-        inputs: {},
-        events: [{ eventgateway: { event: 'test.tested' } }]
-      }
-      serverlessStub.service.functions = {}
-      serverlessStub.service.functions[funcName] = func
-      serverlessStub.service.functions[funcName].inputs[inputName] = 'exampleinput'
-
-      const plugin = constructPlugin(serverlessStub)
-      Client.prototype.createFunction.rejects('Error')
-
-      return expect(plugin.hooks['package:initialize']).to.throw(
-        `Invalid inputs for ${funcType} function "${funcName}". ` +
-          `You provided ${Object.keys(func.inputs)
-            .map(i => `"${i}"`)
-            .join(', ')}. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
-      )
-    })
-
-    it('should throw error if awsfirehose function has incomplete inputs', async () => {
-      // given
-      const funcName = 'saveToFirehose'
-      const funcType = 'awsfirehose'
-      const inputName = 'deliveryStreamName'
-      const func = {
-        type: funcType,
-        inputs: {},
-        events: [{ eventgateway: { event: 'test.tested' } }]
-      }
-      serverlessStub.service.functions = {}
-      serverlessStub.service.functions[funcName] = func
-      serverlessStub.service.functions[funcName].inputs[inputName] = 'exampleinput'
-
-      const plugin = constructPlugin(serverlessStub)
-      Client.prototype.createFunction.rejects('Error')
-
-      return expect(plugin.hooks['package:initialize']).to.throw(
-        `Invalid inputs for ${funcType} function "${funcName}". ` +
-          `You provided ${Object.keys(func.inputs)
-            .map(i => `"${i}"`)
-            .join(', ')}. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
-      )
-    })
-
-    it('should throw error if awssqs function has incomplete inputs', async () => {
-      // given
-      const funcName = 'saveToSQS'
-      const funcType = 'awssqs'
-      const inputName = 'queueUrl'
-      const func = {
-        type: funcType,
-        inputs: {},
-        events: [{ eventgateway: { event: 'test.tested' } }]
-      }
-      serverlessStub.service.functions = {}
-      serverlessStub.service.functions[funcName] = func
-      serverlessStub.service.functions[funcName].inputs[inputName] = 'exampleinput'
-
-      const plugin = constructPlugin(serverlessStub)
-      Client.prototype.createFunction.rejects('Error')
-
-      return expect(plugin.hooks['package:initialize']).to.throw(
-        `Invalid inputs for ${funcType} function "${funcName}". ` +
-          `You provided ${Object.keys(func.inputs)
-            .map(i => `"${i}"`)
-            .join(', ')}. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
-      )
-    })
-
-    it('should register awskinesis function', async () => {
-      // given
-      serverlessStub.service.functions = {
-        saveToKinesis: {
-          name: 'testService-dev-saveToKinesis',
-          type: 'awskinesis',
-          inputs: { arn: 'fakearn', streamName: 'testStream' },
-          events: [{ eventgateway: { event: 'test.tested' } }]
-        }
-      }
-      Client.prototype.listServiceFunctions.resolves([])
-      Client.prototype.subscribeAndCreateCORS.resolves()
-      const plugin = constructPlugin(serverlessStub)
-
-      // when
-      plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
-
-      // then
-      return expect(Client.prototype.createFunction).calledWith({
-        functionId: 'testService-dev-saveToKinesis',
-        provider: { streamName: 'testStream', awsAccessKeyId: 'ak', awsSecretAccessKey: 'sk', region: 'us-east-1' },
-        type: 'awskinesis'
-      })
-    })
-
-    it('should not register connector function if EG returned error', async () => {
-      // given
-      serverlessStub.service.functions = {
-        saveToFirehose: {
-          type: 'awskinesis',
-          inputs: { arn: 'fakearn', streamName: 'testStream' },
-          events: [{ eventgateway: { event: 'test.tested' } }]
-        }
-      }
-      Client.prototype.listServiceFunctions.resolves([])
-      const plugin = constructPlugin(serverlessStub)
-      Client.prototype.createFunction.rejects('Error')
-
-      // when
-      plugin.hooks['package:initialize']()
-
-      // then
-      return expect(plugin.hooks['after:deploy:finalize']()).to.eventually.be.rejectedWith(
-        `Couldn't register Connector Function "saveToFirehose": Error`
-      )
-    })
-
-    it('should have correct IAM Policies', async () => {
-      const arn = 'fakearn'
-      // given
-      serverlessStub.service.functions = {
-        saveToKinesis: {
-          type: 'awskinesis',
-          inputs: { arn: arn, streamName: 'testStream' },
-          events: [{ eventgateway: { event: 'test.tested' } }]
-        }
-      }
-      const plugin = constructPlugin(serverlessStub)
-
-      // when
-      plugin.hooks['package:initialize']()
-
-      // then
-      const expectedIAMPolicy = {
-        Effect: 'Allow',
-        Action: ['kinesis:PutRecord'],
-        Resource: arn
-      }
-      return expect(plugin.requiredIAMPolicies[arn]).to.deep.equal(expectedIAMPolicy)
     })
   })
 

@@ -110,6 +110,46 @@ describe('Event Gateway Client', () => {
     })
   })
 
+  describe('updateFunction', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'updateFunction')
+      SDK.prototype.updateFunction.resolves()
+    })
+
+    it('should add metadata with service and stage', () => {
+      const client = new Client({ url: 'http://localhost:4001' }, 'test', 'dev')
+
+      client.updateFunction({ functionId: 'test', type: 'awslambda', provider: {} })
+
+      return expect(SDK.prototype.updateFunction).to.calledWith({
+        functionId: 'test',
+        type: 'awslambda',
+        provider: {},
+        metadata: {
+          service: 'test',
+          stage: 'dev'
+        }
+      })
+    })
+
+    it('should not override existing metadata', () => {
+      const client = new Client({ url: 'http://localhost:4001' }, 'test', 'dev')
+
+      client.updateFunction({ functionId: 'test', type: 'awslambda', provider: {}, metadata: { foo: 'bar' } })
+
+      return expect(SDK.prototype.updateFunction).to.calledWith({
+        functionId: 'test',
+        type: 'awslambda',
+        provider: {},
+        metadata: {
+          service: 'test',
+          stage: 'dev',
+          foo: 'bar'
+        }
+      })
+    })
+  })
+
   describe('listServiceFunctions', () => {
     beforeEach(() => {
       sandbox.stub(SDK.prototype, 'listFunctions')
