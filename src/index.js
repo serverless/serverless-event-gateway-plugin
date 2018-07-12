@@ -14,7 +14,7 @@ class EGPlugin {
     this.hooks = {
       'package:initialize': this.prepareFunctions.bind(this),
       'package:compileEvents': this.addUserResource.bind(this),
-      'after:deploy:finalize': this.configureEventGateway.bind(this),
+      'before:deploy:finalize': this.configureEventGateway.bind(this),
       'remove:remove': this.remove.bind(this),
       'gateway:gateway': () => {
         this.serverless.cli.generateCommandsHelp(['gateway'])
@@ -60,21 +60,32 @@ class EGPlugin {
   }
 
   setupClient () {
-    // Plugin config
-    let config
+    let defaultUrl, configUrl, accessKey, space, configurationUrl
+
+    if (this.serverless.service.app && this.serverless.service.tenant) defaultUrl = `${this.serverless.service.tenant}-${this.serverless.service.app}.slsgateway.com`
+
     if (this.serverless.service.custom && this.serverless.service.custom.eventgateway) {
-      config = this.serverless.service.custom.eventgateway
-    } else {
-      throw new Error('No Event Gateway configuration provided in serverless.yaml')
+      space = this.serverless.service.custom.eventgateway.space
+      configUrl = this.serverless.service.custom.eventgateway.url
+      configurationUrl = this.serverless.service.custom.eventgateway.configurationUrl
+      accessKey = this.serverless.service.custom.eventgateway.accessKey
     }
+
+    const url = configUrl || defaultUrl
+    if (!accessKey && this.serverless.utils.getLocalAccessKey) {
+      accessKey = this.serverless.utils.getLocalAccessKey()
+    }
+
+    if (!url) throw new Error('Missing url. Please provide an event gateway url')
+    if (!accessKey) throw new Error('Missing accessKey. Please login or provide accessKey in serverless.yaml')
 
     // Event Gateway Service Client
     this.client = new Client(
       {
-        url: config.url,
-        configurationUrl: config.configurationUrl,
-        space: config.space,
-        accessKey: config.accessKey
+        url,
+        configurationUrl,
+        space,
+        accessKey
       },
       this.serverless.service.service,
       this.awsProvider.getStage()
@@ -109,14 +120,14 @@ class EGPlugin {
         ) {
           throw new Error(
             `Invalid inputs for ${func.type} function "${key}". ` +
-              `You provided ${
-                Object.keys(func.inputs).length
-                  ? Object.keys(func.inputs)
-                    .map(i => `"${i}"`)
-                    .join(', ')
-                  : 'none'
-              }. ` +
-              `Please provide either "logicalId" or both "arn" and "${resourceName}" inputs.`
+            `You provided ${
+              Object.keys(func.inputs).length
+                ? Object.keys(func.inputs)
+                  .map(i => `"${i}"`)
+                  .join(', ')
+                : 'none'
+            }. ` +
+            `Please provide either "logicalId" or both "arn" and "${resourceName}" inputs.`
           )
         }
 
@@ -594,7 +605,7 @@ class EGPlugin {
     }
     return {
       outputName:
-        name.charAt(0).toUpperCase() + name.substr(1) + resourceName.charAt(0).toUpperCase() + resourceName.substr(1),
+      name.charAt(0).toUpperCase() + name.substr(1) + resourceName.charAt(0).toUpperCase() + resourceName.substr(1),
       resourceName,
       action
     }

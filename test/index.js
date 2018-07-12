@@ -32,6 +32,9 @@ describe('Event Gateway Plugin', () => {
           }
         }
       },
+      utils: {
+        getLocalAccessKey: sinon.stub().returns('abc')
+      },
       getProvider: sandbox.stub().returns({
         getStage: sinon.stub().returns('dev'),
         getRegion: sinon.stub().returns('us-east-1'),
@@ -162,7 +165,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       return expect(Client.prototype.createFunction).calledWith({
@@ -199,7 +202,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       return expect(Client.prototype.updateFunction).calledWith({
@@ -235,7 +238,7 @@ describe('Event Gateway Plugin', () => {
 
         // when
         plugin.hooks['package:initialize']()
-        await plugin.hooks['after:deploy:finalize']()
+        await plugin.hooks['before:deploy:finalize']()
 
         // then
         return expect(Client.prototype.createFunction).calledWith({
@@ -408,7 +411,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       return expect(Client.prototype.createEventType).calledWith({ name: 'test.event' })
@@ -422,7 +425,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       return expect(Client.prototype.createEventType).calledWith({ name: 'test.event' })
@@ -437,7 +440,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       return expect(Client.prototype.deleteEventType).calledWith({
@@ -456,7 +459,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       return expect(Client.prototype.deleteEventType).calledWith({
@@ -474,7 +477,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       return expect(Client.prototype.updateEventType).calledWith({
@@ -495,7 +498,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       return expect(Client.prototype.updateEventType).calledWith({ name: 'test.event' })
@@ -533,7 +536,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       expect(Client.prototype.unsubscribeAndDeleteCORS).calledWith(existingSubscription)
@@ -560,7 +563,7 @@ describe('Event Gateway Plugin', () => {
 
         // when
         plugin.hooks['package:initialize']()
-        await plugin.hooks['after:deploy:finalize']()
+        await plugin.hooks['before:deploy:finalize']()
 
         // then
         return expect(Client.prototype.subscribeAndCreateCORS).calledWith({
@@ -587,7 +590,7 @@ describe('Event Gateway Plugin', () => {
 
         // when
         plugin.hooks['package:initialize']()
-        await plugin.hooks['after:deploy:finalize']()
+        await plugin.hooks['before:deploy:finalize']()
 
         // then
         return expect(Client.prototype.unsubscribeAndDeleteCORS).not.called
@@ -609,7 +612,7 @@ describe('Event Gateway Plugin', () => {
 
         // when
         plugin.hooks['package:initialize']()
-        await plugin.hooks['after:deploy:finalize']()
+        await plugin.hooks['before:deploy:finalize']()
 
         // then
         return expect(Client.prototype.unsubscribeAndDeleteCORS).not.called
