@@ -23,6 +23,27 @@ describe('Event Gateway Client', () => {
     sandbox.restore()
   })
 
+  describe('listServiceEventTypes', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'listEventTypes')
+    })
+
+    it('should return event types for specific service', () => {
+      SDK.prototype.listEventTypes.resolves([{ name: 'test1', metadata: { service: 'testService1', stage: 'dev' } }])
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService1', 'dev')
+
+      const result = client.listServiceEventTypes()
+
+      expect(SDK.prototype.listEventTypes).to.calledWith({
+        'metadata.service': 'testService1',
+        'metadata.stage': 'dev'
+      })
+      return expect(result).to.eventually.be.deep.equal([
+        { name: 'test1', metadata: { service: 'testService1', stage: 'dev' } }
+      ])
+    })
+  })
+
   describe('createEventType', () => {
     beforeEach(() => {
       sandbox.stub(SDK.prototype, 'createEventType')
@@ -77,6 +98,24 @@ describe('Event Gateway Client', () => {
           foo: 'bar'
         }
       })
+    })
+  })
+
+  describe('listServiceFunctions', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'listFunctions')
+    })
+
+    it('should return function for specific service', () => {
+      SDK.prototype.listFunctions.resolves([
+        { functionId: 'testService1-dev-func1' },
+        { functionId: 'testService2-dev-func2' }
+      ])
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService1', 'dev')
+
+      const result = client.listServiceFunctions()
+
+      return expect(result).to.eventually.be.deep.equal([{ functionId: 'testService1-dev-func1' }])
     })
   })
 
@@ -150,24 +189,6 @@ describe('Event Gateway Client', () => {
     })
   })
 
-  describe('listServiceFunctions', () => {
-    beforeEach(() => {
-      sandbox.stub(SDK.prototype, 'listFunctions')
-    })
-
-    it('should return function for specific service', () => {
-      SDK.prototype.listFunctions.resolves([
-        { functionId: 'testService1-dev-func1' },
-        { functionId: 'testService2-dev-func2' }
-      ])
-      const client = new Client({ url: 'http://localhost:4001' }, 'testService1', 'dev')
-
-      const result = client.listServiceFunctions()
-
-      return expect(result).to.eventually.be.deep.equal([{ functionId: 'testService1-dev-func1' }])
-    })
-  })
-
   describe('listServiceSubscriptions', () => {
     beforeEach(() => {
       sandbox.stub(SDK.prototype, 'listSubscriptions')
@@ -186,28 +207,7 @@ describe('Event Gateway Client', () => {
     })
   })
 
-  describe('listServiceEventTypes', () => {
-    beforeEach(() => {
-      sandbox.stub(SDK.prototype, 'listEventTypes')
-    })
-
-    it('should return function for specific service', () => {
-      SDK.prototype.listEventTypes.resolves([{ name: 'test1', metadata: { service: 'testService1', stage: 'dev' } }])
-      const client = new Client({ url: 'http://localhost:4001' }, 'testService1', 'dev')
-
-      const result = client.listServiceEventTypes()
-
-      expect(SDK.prototype.listEventTypes).to.calledWith({
-        'metadata.service': 'testService1',
-        'metadata.stage': 'dev'
-      })
-      return expect(result).to.eventually.be.deep.equal([
-        { name: 'test1', metadata: { service: 'testService1', stage: 'dev' } }
-      ])
-    })
-  })
-
-  describe('subscribeAndCreateCORS', () => {
+  describe('subscribe', () => {
     beforeEach(() => {
       sandbox.stub(SDK.prototype, 'subscribe')
     })
@@ -215,7 +215,7 @@ describe('Event Gateway Client', () => {
     it('should support legacy custom event format', async () => {
       const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
 
-      await client.subscribeAndCreateCORS({
+      await client.subscribe({
         functionId: 'test',
         event: 'test.event',
         path: '/test'
@@ -237,7 +237,7 @@ describe('Event Gateway Client', () => {
     it('should support legacy HTTP event format', async () => {
       const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
 
-      await client.subscribeAndCreateCORS({
+      await client.subscribe({
         functionId: 'test',
         event: 'http',
         path: '/test',
@@ -257,12 +257,85 @@ describe('Event Gateway Client', () => {
       })
     })
 
-    it('should support legacy CORS format', async () => {
-      SDK.prototype.subscribe.resolves()
-      sandbox.stub(SDK.prototype, 'createCORS')
+    it('should prefix path with space', async () => {
       const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
 
-      await client.subscribeAndCreateCORS({
+      await client.subscribe({
+        type: 'async',
+        functionId: 'test',
+        eventType: 'test.event',
+        path: '/test',
+        method: 'POST'
+      })
+
+      return expect(SDK.prototype.subscribe).calledWith({
+        type: 'async',
+        functionId: 'test',
+        eventType: 'test.event',
+        path: '/default/test',
+        method: 'POST',
+        metadata: {
+          service: 'testService',
+          stage: 'dev'
+        }
+      })
+    })
+  })
+
+  describe('listServiceCORS', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'listCORS')
+    })
+
+    it('should return CORS configurations for specific service', () => {
+      SDK.prototype.listCORS.resolves([{ corsId: 'test', metadata: { service: 'testService1', stage: 'dev' } }])
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService1', 'dev')
+
+      const result = client.listServiceCORS()
+
+      expect(SDK.prototype.listCORS).to.calledWith({
+        'metadata.service': 'testService1',
+        'metadata.stage': 'dev'
+      })
+      return expect(result).to.eventually.be.deep.equal([
+        { corsId: 'test', metadata: { service: 'testService1', stage: 'dev' } }
+      ])
+    })
+  })
+
+  describe('createCORSFromSubscription', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'createCORS')
+    })
+
+    it('should add metadata with service and stage', async () => {
+      SDK.prototype.createCORS.resolves()
+      const client = new Client({ url: 'http://localhost:4001' }, 'test', 'dev')
+
+      await client.createCORSFromSubscription({
+        type: 'async',
+        functionId: 'test',
+        eventType: 'test.event',
+        path: '/test',
+        method: 'POST',
+        cors: true
+      })
+
+      return expect(SDK.prototype.createCORS).to.calledWith({
+        method: 'POST',
+        path: '/default/test',
+        metadata: {
+          service: 'test',
+          stage: 'dev'
+        }
+      })
+    })
+
+    it('should support legacy CORS format', async () => {
+      SDK.prototype.createCORS.resolves()
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
+
+      await client.createCORSFromSubscription({
         type: 'async',
         functionId: 'test',
         eventType: 'test.event',
@@ -290,47 +363,19 @@ describe('Event Gateway Client', () => {
       })
     })
 
-    it('should prefix path with space', async () => {
+    it('should default CORS method to POST if not provided', async () => {
       const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
 
-      await client.subscribeAndCreateCORS({
+      await client.createCORSFromSubscription({
         type: 'async',
         functionId: 'test',
         eventType: 'test.event',
-        path: '/test',
-        method: 'POST'
-      })
-
-      return expect(SDK.prototype.subscribe).calledWith({
-        type: 'async',
-        functionId: 'test',
-        eventType: 'test.event',
-        path: '/default/test',
-        method: 'POST',
-        metadata: {
-          service: 'testService',
-          stage: 'dev'
-        }
-      })
-    })
-
-    it('should configure CORS (inclugin metadata)', async () => {
-      SDK.prototype.subscribe.resolves()
-      sandbox.stub(SDK.prototype, 'createCORS')
-      const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
-
-      await client.subscribeAndCreateCORS({
-        type: 'async',
-        functionId: 'test',
-        eventType: 'test.event',
-        path: '/test',
-        method: 'POST',
         cors: true
       })
 
       return expect(SDK.prototype.createCORS).calledWith({
         method: 'POST',
-        path: '/default/test',
+        path: '/default/',
         metadata: {
           service: 'testService',
           stage: 'dev'
@@ -338,17 +383,84 @@ describe('Event Gateway Client', () => {
       })
     })
 
-    it('should remove CORS configuration when the subscription is removed', async () => {
-      sandbox.stub(SDK.prototype, 'unsubscribe').resolves()
-      sandbox.stub(SDK.prototype, 'createCORS').resolves()
-      sandbox.stub(SDK.prototype, 'deleteCORS')
-      sandbox.stub(SDK.prototype, 'listCORS').resolves([{ corsId: 'GET%2Ftest', path: '/test', method: 'GET' }])
+    it('should default CORS method to GET if not provided in legacy mode', async () => {
       const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
 
-      await client.unsubscribeAndDeleteCORS({ subscriptionId: 'testid', method: 'GET', path: '/test' })
+      await client.createCORSFromSubscription({
+        functionId: 'test',
+        event: 'http',
+        cors: true
+      })
 
-      return expect(SDK.prototype.deleteCORS).calledWith({
-        corsId: 'GET%2Ftest'
+      return expect(SDK.prototype.createCORS).calledWith({
+        method: 'GET',
+        path: '/default/',
+        metadata: {
+          service: 'testService',
+          stage: 'dev'
+        }
+      })
+    })
+  })
+
+  describe('updateCORSFromSubscription', () => {
+    beforeEach(() => {
+      sandbox.stub(SDK.prototype, 'updateCORS')
+      SDK.prototype.updateCORS.resolves()
+    })
+
+    it('should update CORS configuration', async () => {
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
+
+      await client.updateCORSFromSubscription(
+        {
+          eventType: 'test.event',
+          cors: {
+            origins: ['http://example.com'],
+            methods: ['POST'],
+            headers: ['x-api-key'],
+            allowCredentials: true
+          }
+        },
+        {
+          corsId: 'testid',
+          method: 'GET',
+          path: '/test'
+        }
+      )
+
+      return expect(SDK.prototype.updateCORS).calledWith({
+        corsId: 'testid',
+        method: 'GET',
+        path: '/test',
+        allowedOrigins: ['http://example.com'],
+        allowedMethods: ['POST'],
+        allowedHeaders: ['x-api-key'],
+        allowCredentials: true,
+        metadata: { service: 'testService', stage: 'dev' }
+      })
+    })
+
+    it('should update CORS with default values', async () => {
+      const client = new Client({ url: 'http://localhost:4001' }, 'testService', 'dev')
+
+      await client.updateCORSFromSubscription(
+        {
+          eventType: 'test.event',
+          cors: true
+        },
+        {
+          corsId: 'testid',
+          method: 'GET',
+          path: '/test'
+        }
+      )
+
+      return expect(SDK.prototype.updateCORS).calledWith({
+        corsId: 'testid',
+        method: 'GET',
+        path: '/test',
+        metadata: { service: 'testService', stage: 'dev' }
       })
     })
   })

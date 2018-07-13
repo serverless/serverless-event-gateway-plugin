@@ -148,6 +148,7 @@ describe('Event Gateway Plugin', () => {
   describe('functions', () => {
     beforeEach(() => {
       Client.prototype.listServiceEventTypes.resolves([])
+      Client.prototype.listServiceCORS.resolves([])
     })
 
     it('should register awslambda function', async () => {
@@ -160,7 +161,7 @@ describe('Event Gateway Plugin', () => {
         }
       }
       Client.prototype.listServiceFunctions.resolves([])
-      Client.prototype.subscribeAndCreateCORS.resolves()
+      Client.prototype.subscribe.resolves()
       const plugin = constructPlugin(serverlessStub)
 
       // when
@@ -197,7 +198,7 @@ describe('Event Gateway Plugin', () => {
           provider: { streamName: 'foo', region: 'bar' }
         }
       ])
-      Client.prototype.subscribeAndCreateCORS.resolves()
+      Client.prototype.subscribe.resolves()
       const plugin = constructPlugin(serverlessStub)
 
       // when
@@ -233,7 +234,7 @@ describe('Event Gateway Plugin', () => {
           }
         }
         Client.prototype.listServiceFunctions.resolves([])
-        Client.prototype.subscribeAndCreateCORS.resolves()
+        Client.prototype.subscribe.resolves()
         const plugin = constructPlugin(serverlessStub)
 
         // when
@@ -393,6 +394,8 @@ describe('Event Gateway Plugin', () => {
 
   describe('event types', () => {
     beforeEach(() => {
+      Client.prototype.listServiceCORS.resolves([])
+
       serverlessStub.service.functions = {
         testFunc: {
           name: 'testService-dev-testFunc',
@@ -509,14 +512,66 @@ describe('Event Gateway Plugin', () => {
     beforeEach(() => {
       Client.prototype.listServiceEventTypes.resolves([])
       Client.prototype.listServiceFunctions.resolves([])
+      Client.prototype.listServiceCORS.resolves([])
 
       serverlessStub.service.functions = {
         testFunc: {
           name: 'testService-dev-testFunc',
           handler: 'test',
-          events: [{ eventgateway: { type: 'async', eventType: 'user.created', path: '/hello1', method: 'GET' } }]
+          events: [
+            {
+              eventgateway: {
+                type: 'async',
+                eventType: 'user.created',
+                path: '/hello',
+                method: 'GET'
+              }
+            }
+          ]
         }
       }
+    })
+
+    it('should create subscription', async () => {
+      // given
+      Client.prototype.listServiceSubscriptions.resolves([])
+      Client.prototype.listServiceFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['after:deploy:finalize']()
+
+      // then
+      return expect(Client.prototype.subscribe).calledWith({
+        type: 'async',
+        eventType: 'user.created',
+        functionId: 'testService-dev-testFunc',
+        method: 'GET',
+        path: '/hello'
+      })
+    })
+
+    it('should create CORS configuration', async () => {
+      // given
+      serverlessStub.service.functions.testFunc.events[0].eventgateway.cors = true
+      Client.prototype.listServiceSubscriptions.resolves([])
+      Client.prototype.listServiceFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['after:deploy:finalize']()
+
+      // then
+      return expect(Client.prototype.createCORSFromSubscription).calledWith({
+        type: 'async',
+        eventType: 'user.created',
+        functionId: 'testService-dev-testFunc',
+        method: 'GET',
+        path: '/hello',
+        cors: true
+      })
     })
 
     it('should recreate subscription if path changed', async () => {
@@ -524,14 +579,13 @@ describe('Event Gateway Plugin', () => {
       const existingSubscription = {
         subscriptionId: 'testid',
         type: 'async',
-        functionId: 'test-dev-testFunc',
+        functionId: 'testService-dev-testFunc',
         method: 'GET',
-        path: '/hello'
+        path: '/differentpath'
       }
       Client.prototype.unsubscribe.resolves()
-      Client.prototype.unsubscribeAndDeleteCORS.resolves()
       Client.prototype.listServiceSubscriptions.resolves([existingSubscription])
-      Client.prototype.listServiceFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
+      Client.prototype.listServiceFunctions.resolves([{ functionId: 'testService-dev-testFunc' }])
       const plugin = constructPlugin(serverlessStub)
 
       // when
@@ -539,14 +593,84 @@ describe('Event Gateway Plugin', () => {
       await plugin.hooks['before:deploy:finalize']()
 
       // then
-      expect(Client.prototype.unsubscribeAndDeleteCORS).calledWith(existingSubscription)
-      return expect(Client.prototype.subscribeAndCreateCORS).calledWith({
+      expect(Client.prototype.unsubscribe).calledWith(existingSubscription)
+      return expect(Client.prototype.subscribe).calledWith({
+        type: 'async',
+        eventType: 'user.created',
+        functionId: 'testService-dev-testFunc',
+        method: 'GET',
+        path: '/hello'
+      })
+    })
+
+    it('should update CORS configuration', async () => {
+      // given
+      serverlessStub.service.functions.testFunc.events[0].eventgateway.cors = true
+      Client.prototype.listServiceCORS.resolves([
+        {
+          corsId: 'testid',
+          path: '/hello',
+          method: 'GET'
+        }
+      ])
+      Client.prototype.listServiceSubscriptions.resolves([])
+      Client.prototype.subscribe.resolves({
+        subscriptionId: 'testid',
+        type: 'async',
+        eventType: 'user.created',
+        path: '/hello',
+        method: 'GET'
+      })
+      Client.prototype.listServiceFunctions.resolves([{ functionId: 'testService-dev-testFunc' }])
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['after:deploy:finalize']()
+
+      // then
+      return expect(Client.prototype.updateCORSFromSubscription).calledWith(
+        {
+          type: 'async',
+          eventType: 'user.created',
+          functionId: 'testService-dev-testFunc',
+          method: 'GET',
+          path: '/hello',
+          cors: true
+        },
+        { corsId: 'testid', path: '/hello', method: 'GET' }
+      )
+    })
+
+    it('should remove not used subscription', async () => {
+      // given
+      const existingSubscription = {
+        subscriptionId: 'testid1',
         type: 'async',
         eventType: 'user.created',
         functionId: 'testService-dev-testFunc',
         method: 'GET',
         path: '/hello1'
-      })
+      }
+      const notUsedSubscription = {
+        subscriptionId: 'testid2',
+        type: 'async',
+        eventType: 'test.deleted',
+        functionId: 'test-dev-testFunc',
+        method: 'GET',
+        path: '/hello1'
+      }
+      Client.prototype.unsubscribe.resolves()
+      Client.prototype.listServiceSubscriptions.resolves([existingSubscription, notUsedSubscription])
+      Client.prototype.listServiceFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['after:deploy:finalize']()
+
+      // then
+      return expect(Client.prototype.unsubscribe).calledWith(notUsedSubscription)
     })
 
     describe('legacy mode (old subscription format support)', () => {
@@ -566,7 +690,7 @@ describe('Event Gateway Plugin', () => {
         await plugin.hooks['before:deploy:finalize']()
 
         // then
-        return expect(Client.prototype.subscribeAndCreateCORS).calledWith({
+        return expect(Client.prototype.subscribe).calledWith({
           event: 'http',
           functionId: 'testService-dev-testFunc',
           method: 'get',
@@ -593,7 +717,7 @@ describe('Event Gateway Plugin', () => {
         await plugin.hooks['before:deploy:finalize']()
 
         // then
-        return expect(Client.prototype.unsubscribeAndDeleteCORS).not.called
+        return expect(Client.prototype.unsubscribe).not.called
       })
 
       it('should not delete custom event subscription', async () => {
@@ -615,7 +739,7 @@ describe('Event Gateway Plugin', () => {
         await plugin.hooks['before:deploy:finalize']()
 
         // then
-        return expect(Client.prototype.unsubscribeAndDeleteCORS).not.called
+        return expect(Client.prototype.unsubscribe).not.called
       })
     })
   })

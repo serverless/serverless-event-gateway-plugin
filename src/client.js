@@ -7,6 +7,13 @@ module.exports = class EGClient extends SDK {
     this.stage = stage
   }
 
+  listServiceEventTypes () {
+    return this.listEventTypes({
+      'metadata.service': this.service,
+      'metadata.stage': this.stage
+    })
+  }
+
   createEventType (et) {
     et.metadata = this.metadata()
     return super.createEventType(et)
@@ -21,6 +28,15 @@ module.exports = class EGClient extends SDK {
       et.metadata.stage = stage
     }
     return super.updateEventType(et)
+  }
+
+  async listServiceFunctions () {
+    try {
+      const functions = await this.listFunctions()
+      return functions.filter(f => f.functionId.startsWith(`${this.service}-${this.stage}`))
+    } catch (err) {
+      return []
+    }
   }
 
   async createFunction (fn) {
@@ -43,96 +59,6 @@ module.exports = class EGClient extends SDK {
     return super.updateFunction(fn)
   }
 
-  async subscribeAndCreateCORS (event) {
-    const toUpperCase = str => (str instanceof String ? str.toUpperCase() : str)
-
-    let subscribeEvent = {
-      functionId: event.functionId,
-      path: eventPath(event, this.config.space)
-    }
-
-    if (event.event) {
-      // legacy mode
-      if (event.event === 'http') {
-        subscribeEvent.type = 'sync'
-        subscribeEvent.eventType = 'http.request'
-        subscribeEvent.method = toUpperCase(event.method) || 'GET'
-      } else {
-        subscribeEvent.type = 'async'
-        subscribeEvent.eventType = event.event
-        subscribeEvent.method = 'POST'
-      }
-    } else {
-      subscribeEvent.type = event.type
-      subscribeEvent.eventType = event.eventType
-      subscribeEvent.method = toUpperCase(event.method)
-    }
-
-    let cors
-    if (event.cors === true) {
-      cors = {
-        path: subscribeEvent.path,
-        method: subscribeEvent.method,
-        metadata: this.metadata()
-      }
-    } else {
-      if (event.cors) {
-        cors = {
-          path: subscribeEvent.path,
-          method: subscribeEvent.method,
-          allowedOrigins: event.cors.origins,
-          allowedMethods: event.cors.methods,
-          allowedHeaders: event.cors.headers,
-          allowCredentials: event.cors.allowCredentials,
-          metadata: this.metadata()
-        }
-      }
-    }
-
-    try {
-      subscribeEvent.metadata = this.metadata()
-      await super.subscribe(subscribeEvent)
-    } catch (err) {
-      if (subscribeEvent.type === 'sync' && err.message.includes('already exists')) {
-        const msg =
-          `Could not subscribe the ${subscribeEvent.functionId} function to the '${subscribeEvent.path}' ` +
-          `endpoint. A subscription for that endpoint and method already ` +
-          `exists in another service. Please remove that subscription before ` +
-          `registering this subscription.`
-        throw new Error(msg)
-      } else {
-        throw new Error(`Couldn't create subscription for ${subscribeEvent.functionId}. ${err}`)
-      }
-    }
-
-    if (cors) {
-      try {
-        await super.createCORS(cors)
-      } catch (err) {
-        throw new Error(`Couldn't configure CORS for path ${subscribeEvent.path}. ${err}`)
-      }
-    }
-  }
-
-  unsubscribeAndDeleteCORS (subscription) {
-    return Promise.all([
-      super.unsubscribe({ subscriptionId: subscription.subscriptionId }),
-      super
-        .listCORS()
-        .then(list => list.find(c => c.path === subscription.path && c.method === subscription.method))
-        .then(cors => cors && super.deleteCORS({ corsId: cors.corsId }))
-    ])
-  }
-
-  async listServiceFunctions () {
-    try {
-      const functions = await this.listFunctions()
-      return functions.filter(f => f.functionId.startsWith(`${this.service}-${this.stage}`))
-    } catch (err) {
-      return []
-    }
-  }
-
   async listServiceSubscriptions () {
     try {
       const subscriptions = await this.listSubscriptions()
@@ -142,11 +68,109 @@ module.exports = class EGClient extends SDK {
     }
   }
 
-  listServiceEventTypes () {
-    return this.listEventTypes({
+  async subscribe (event) {
+    let subscription = {
+      functionId: event.functionId,
+      path: eventPath(event, this.config.space),
+      metadata: this.metadata()
+    }
+
+    if (event.event) {
+      // legacy mode
+      if (event.event === 'http') {
+        subscription.type = 'sync'
+        subscription.eventType = 'http.request'
+        subscription.method = toUpperCase(event.method) || 'GET'
+      } else {
+        subscription.type = 'async'
+        subscription.eventType = event.event
+        subscription.method = 'POST'
+      }
+    } else {
+      subscription.type = event.type
+      subscription.eventType = event.eventType
+      subscription.method = toUpperCase(event.method)
+    }
+
+    try {
+      return await super.subscribe(subscription)
+    } catch (err) {
+      if (subscription.type === 'sync' && err.message.includes('already exists')) {
+        const msg =
+          `Could not subscribe the ${subscription.functionId} function to the '${subscription.path}' ` +
+          `endpoint. A subscription for that endpoint and method already ` +
+          `exists in another service. Please remove that subscription before ` +
+          `registering this subscription.`
+        throw new Error(msg)
+      } else {
+        throw new Error(`Couldn't create subscription for ${subscription.functionId}. ${err}`)
+      }
+    }
+  }
+
+  listServiceCORS () {
+    return this.listCORS({
       'metadata.service': this.service,
       'metadata.stage': this.stage
     })
+  }
+
+  async createCORSFromSubscription (event) {
+    const cors = {
+      path: eventPath(event, this.config.space),
+      metadata: this.metadata()
+    }
+
+    if (event.event === 'http') {
+      // legacy mode
+      cors.method = toUpperCase(event.method) || 'GET'
+    } else {
+      cors.method = toUpperCase(event.method) || 'POST'
+    }
+
+    if (event.cors && event.cors !== true) {
+      cors.allowedOrigins = event.cors.origins
+      cors.allowedMethods = event.cors.methods
+      cors.allowedHeaders = event.cors.headers
+      cors.allowCredentials = event.cors.allowCredentials
+    }
+
+    cors.metadata = this.metadata()
+
+    try {
+      return await super.createCORS(cors)
+    } catch (err) {
+      throw new Error(`Couldn't configure CORS for path ${cors.path}. ${err}`)
+    }
+  }
+
+  updateCORSFromSubscription (event, cors) {
+    const updatedCORS = cors
+
+    if (event.cors === true) {
+      delete updatedCORS['allowCredentials']
+      delete updatedCORS['allowedOrigins']
+      delete updatedCORS['allowedHeaders']
+      delete updatedCORS['allowedMethods']
+    } else {
+      updatedCORS.allowedOrigins = event.cors.origins
+      updatedCORS.allowedMethods = event.cors.methods
+      updatedCORS.allowedHeaders = event.cors.headers
+      updatedCORS.allowCredentials = event.cors.allowCredentials
+    }
+
+    return this.updateCORS(updatedCORS)
+  }
+
+  updateCORS (cors) {
+    if (!cors.metadata) {
+      cors.metadata = this.metadata()
+    } else {
+      const { service, stage } = this.metadata()
+      cors.metadata.service = service
+      cors.metadata.stage = stage
+    }
+    return super.updateCORS(cors)
   }
 
   metadata () {
@@ -165,4 +189,8 @@ function eventPath (event, space) {
   }
 
   return `/${space}${path}`
+}
+
+function toUpperCase (str) {
+  return str instanceof String ? str.toUpperCase() : str
 }

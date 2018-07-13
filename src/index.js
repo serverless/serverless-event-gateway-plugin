@@ -171,12 +171,12 @@ class EGPlugin {
 
     this.setupClient()
 
-    const outputs = await this.fetchStackOutputs()
-    const definedFunctions = this.definedFunctions(outputs)
+    const definedFunctions = this.definedFunctions(await this.fetchStackOutputs())
     let registeredFunctions = await this.client.listServiceFunctions()
     let registeredSubscriptions = await this.client.listServiceSubscriptions()
-
+    let registeredCORS = await this.client.listServiceCORS()
     const registeredEventTypes = await this.client.listServiceEventTypes()
+
     this.registerEventTypes(registeredEventTypes, definedFunctions)
 
     await Promise.all(
@@ -186,11 +186,8 @@ class EGPlugin {
         if (!registeredFunction) {
           await this.registerFunction(key, definedFunction)
         } else {
-          // remove function from functions array
           registeredFunctions = registeredFunctions.filter(f => f.functionId !== definedFunction.functionId)
-
-          // update function and subscriptions
-          await this.updateFunction(key, definedFunction, registeredFunction, registeredSubscriptions)
+          await this.updateFunction(key, definedFunction, registeredFunction, registeredSubscriptions, registeredCORS)
         }
 
         await this.updateEventTypesAuthorizers(definedFunction.functionId)
@@ -199,6 +196,7 @@ class EGPlugin {
 
     await this.cleanupFunctionsAndSubscriptions(registeredFunctions, registeredSubscriptions, registeredEventTypes)
     await this.cleanupEventTypes(registeredEventTypes, definedFunctions)
+    await this.cleanupCORS(registeredCORS)
   }
 
   async registerFunction (key, fn) {
@@ -206,14 +204,18 @@ class EGPlugin {
     this.serverless.cli.consoleLog(`EventGateway: Function "${key}" registered. (ID: ${fn.functionId})`)
 
     for (let event of fn.events) {
-      await this.client.subscribeAndCreateCORS(event)
+      await this.client.subscribe(event)
       this.serverless.cli.consoleLog(
         `EventGateway: Function "${key}" subscribed to "${event.event || event.eventType}" event.`
       )
+
+      if (event.cors) {
+        await this.client.createCORSFromSubscription(event)
+      }
     }
   }
 
-  async updateFunction (key, fn, existingFn, registeredSubscriptions) {
+  async updateFunction (key, fn, existingFn, registeredSubscriptions, registeredCORS) {
     if (!this.areFunctionsEqual(fn, existingFn)) {
       await this.client.updateFunction({
         functionId: fn.functionId,
@@ -224,23 +226,35 @@ class EGPlugin {
     }
 
     let subscriptions = registeredSubscriptions.filter(s => s.functionId === fn.functionId)
-    fn.events.forEach(async event => {
-      const subscription = subscriptions.find(existing => this.areSubscriptionsEqual(event, existing))
+    for (let event of fn.events) {
+      let subscription = subscriptions.find(existing => this.areSubscriptionsEqual(event, existing))
+
       if (!subscription) {
-        await this.client.subscribeAndCreateCORS(event)
+        subscription = await this.client.subscribe(event)
         this.serverless.cli.consoleLog(
           `EventGateway: Function "${key}" subscribed to "${event.event || event.eventType}" event.`
         )
       } else {
         subscriptions = subscriptions.filter(s => s.subscriptionId !== subscription.subscriptionId)
       }
-    })
+
+      if (event.cors) {
+        const cors = registeredCORS.find(c => c.method === subscription.method && c.path === subscription.path)
+        if (!cors) {
+          await this.client.createCORSFromSubscription(event)
+        } else {
+          await this.client.updateCORSFromSubscription(event, cors)
+        }
+      }
+
+      registeredCORS = registeredCORS.filter(c => !(c.method === subscription.method && c.path === subscription.path))
+    }
 
     // cleanup subscription that are not needed
     await Promise.all(
       subscriptions.map(sub =>
         this.client
-          .unsubscribeAndDeleteCORS(sub)
+          .unsubscribe(sub)
           .then(() =>
             this.serverless.cli.consoleLog(
               `EventGateway: Function "${key}" unsubscribed from "${sub.event || sub.eventType}" event.`
@@ -269,7 +283,7 @@ class EGPlugin {
       const subscriptionsToDelete = registeredSubscriptions.filter(s => s.functionId === functionToDelete.functionId)
 
       await Promise.all(
-        subscriptionsToDelete.map(subscriptionToDelete => this.client.unsubscribeAndDeleteCORS(subscriptionToDelete))
+        subscriptionsToDelete.map(subscriptionToDelete => this.client.unsubscribe(subscriptionToDelete))
       )
 
       const eventTypeWithAuth = registeredEventTypes.find(et => et.authorizerId === functionToDelete.functionId)
@@ -285,6 +299,10 @@ class EGPlugin {
     }
   }
 
+  async cleanupCORS (registeredCORS) {
+    return Promise.all(registeredCORS.map(cors => this.client.deleteCORS({ corsId: cors.corsId })))
+  }
+
   async remove () {
     this.setupClient()
     this.serverless.cli.consoleLog('')
@@ -292,7 +310,7 @@ class EGPlugin {
 
     const subscriptions = await this.client.listServiceSubscriptions()
     const unsubList = subscriptions.map(sub =>
-      this.client.unsubscribeAndDeleteCORS(sub).then(() => {
+      this.client.unsubscribe(sub).then(() => {
         this.serverless.cli.consoleLog(
           `EventGateway: Subscription "${sub.eventType}" removed from function: ${sub.functionId}`
         )
