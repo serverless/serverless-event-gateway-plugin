@@ -540,7 +540,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       return expect(Client.prototype.subscribe).calledWith({
@@ -561,7 +561,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       return expect(Client.prototype.createCORSFromSubscription).calledWith({
@@ -626,7 +626,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       return expect(Client.prototype.updateCORSFromSubscription).calledWith(
@@ -667,7 +667,7 @@ describe('Event Gateway Plugin', () => {
 
       // when
       plugin.hooks['package:initialize']()
-      await plugin.hooks['after:deploy:finalize']()
+      await plugin.hooks['before:deploy:finalize']()
 
       // then
       return expect(Client.prototype.unsubscribe).calledWith(notUsedSubscription)
