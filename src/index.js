@@ -99,7 +99,7 @@ class EGPlugin {
       const func = this.serverless.service.functions[key]
 
       // function is not subscribed nor is an authorizer
-      if (!func.events.find(event => event.eventgateway) || eventTypes.find(et => et.authorizer === key)) {
+      if (!func.events.find(event => event.eventgateway) && !eventTypes.find(et => et.authorizer === func.name)) {
         continue
       }
 
