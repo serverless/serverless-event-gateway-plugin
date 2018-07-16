@@ -177,7 +177,7 @@ class EGPlugin {
     let registeredCORS = await this.client.listServiceCORS()
     const registeredEventTypes = await this.client.listServiceEventTypes()
 
-    this.registerEventTypes(registeredEventTypes, definedFunctions)
+    await this.registerEventTypes(registeredEventTypes, definedFunctions)
 
     await Promise.all(
       Object.keys(definedFunctions).map(async key => {
