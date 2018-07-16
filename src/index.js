@@ -318,14 +318,6 @@ class EGPlugin {
     )
     await Promise.all(unsubList)
 
-    const functions = await this.client.listServiceFunctions()
-    const deleteFuncList = functions.map(func =>
-      this.client.deleteFunction({ functionId: func.functionId }).then(() => {
-        this.serverless.cli.consoleLog(`EventGateway: Function "${func.functionId}" removed.`)
-      })
-    )
-    await Promise.all(deleteFuncList)
-
     const eventTypes = await this.client.listEventTypes()
     const deleteTypesList = eventTypes.map(etype =>
       this.client.deleteEventType({ name: etype.name }).then(() => {
@@ -333,6 +325,14 @@ class EGPlugin {
       })
     )
     await Promise.all(deleteTypesList)
+
+    const functions = await this.client.listServiceFunctions()
+    const deleteFuncList = functions.map(func =>
+      this.client.deleteFunction({ functionId: func.functionId }).then(() => {
+        this.serverless.cli.consoleLog(`EventGateway: Function "${func.functionId}" removed.`)
+      })
+    )
+    await Promise.all(deleteFuncList)
   }
 
   // event typed defined in custom section
