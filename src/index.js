@@ -60,24 +60,29 @@ class EGPlugin {
   }
 
   setupClient () {
-    let defaultUrl, configUrl, accessKey, space, configurationUrl
+    let url, accessKey, space, configurationUrl, domain
 
-    if (this.serverless.service.app && this.serverless.service.tenant) defaultUrl = `${this.serverless.service.tenant}-${this.serverless.service.app}.slsgateway.com`
-
-    if (this.serverless.service.custom && this.serverless.service.custom.eventgateway) {
-      space = this.serverless.service.custom.eventgateway.space
-      configUrl = this.serverless.service.custom.eventgateway.url
-      configurationUrl = this.serverless.service.custom.eventgateway.configurationUrl
-      accessKey = this.serverless.service.custom.eventgateway.accessKey
+    // Load variables based on app and tenant
+    domain = 'slsgateway.com'
+    if (process.env.SERVERLESS_PLATFORM_STAGE && process.env.SERVERLESS_PLATFORM_STAGE !== 'prod') {
+      domain = `eventgateway-dev.io`
     }
 
-    const url = configUrl || defaultUrl
-    if (!accessKey && this.serverless.utils.getLocalAccessKey) {
+    if (this.serverless.service.app && this.serverless.service.tenant) {
+      url = `${this.serverless.service.tenant}-${this.serverless.service.app}.${domain}`
+    }
+
+    if (this.serverless.utils.getLocalAccessKey) {
       accessKey = this.serverless.utils.getLocalAccessKey()
     }
 
-    if (!url) throw new Error('Missing url. Please provide an event gateway url')
-    if (!accessKey) throw new Error('Missing accessKey. Please login or provide accessKey in serverless.yaml')
+    // Load explicit values from sls.yaml configuration
+    if (this.serverless.service.custom && this.serverless.service.custom.eventgateway) {
+      url = this.serverless.service.custom.eventgateway.url || url
+      space = this.serverless.service.custom.eventgateway.space
+      configurationUrl = this.serverless.service.custom.eventgateway.configurationUrl
+      accessKey = this.serverless.service.custom.eventgateway.accessKey || accessKey
+    }
 
     // Event Gateway Service Client
     this.client = new Client(
@@ -120,14 +125,14 @@ class EGPlugin {
         ) {
           throw new Error(
             `Invalid inputs for ${func.type} function "${key}". ` +
-            `You provided ${
-              Object.keys(func.inputs).length
-                ? Object.keys(func.inputs)
-                  .map(i => `"${i}"`)
-                  .join(', ')
-                : 'none'
-            }. ` +
-            `Please provide either "logicalId" or both "arn" and "${resourceName}" inputs.`
+              `You provided ${
+                Object.keys(func.inputs).length
+                  ? Object.keys(func.inputs)
+                    .map(i => `"${i}"`)
+                    .join(', ')
+                  : 'none'
+              }. ` +
+              `Please provide either "logicalId" or both "arn" and "${resourceName}" inputs.`
           )
         }
 
@@ -623,7 +628,7 @@ class EGPlugin {
     }
     return {
       outputName:
-      name.charAt(0).toUpperCase() + name.substr(1) + resourceName.charAt(0).toUpperCase() + resourceName.substr(1),
+        name.charAt(0).toUpperCase() + name.substr(1) + resourceName.charAt(0).toUpperCase() + resourceName.substr(1),
       resourceName,
       action
     }

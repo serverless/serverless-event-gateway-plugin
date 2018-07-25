@@ -12,13 +12,15 @@ let Plugin = require('../src/index.js')
 describe('Event Gateway Plugin', () => {
   let sandbox
   let serverlessStub
+  let clientSpy
 
   beforeEach(() => {
     sandbox = sinon.sandbox.create()
     sandbox.stub(Client.prototype)
+    clientSpy = sandbox.spy(Client)
 
     Plugin = proxyquire('../src/index.js', {
-      './client': Client
+      './client': clientSpy
     })
 
     serverlessStub = {
@@ -33,7 +35,7 @@ describe('Event Gateway Plugin', () => {
         }
       },
       utils: {
-        getLocalAccessKey: sinon.stub().returns('abc')
+        getLocalAccessKey: sinon.stub().returns('')
       },
       getProvider: sandbox.stub().returns({
         getStage: sinon.stub().returns('dev'),
@@ -63,6 +65,107 @@ describe('Event Gateway Plugin', () => {
 
   afterEach(() => {
     sandbox.restore()
+  })
+
+  describe('EG client initialization', () => {
+    beforeEach(() => {
+      Client.prototype.listServiceEventTypes.resolves([])
+      Client.prototype.listServiceCORS.resolves([])
+      Client.prototype.listServiceFunctions.resolves([])
+      serverlessStub.service.functions = {}
+    })
+
+    afterEach(() => {
+      delete process.env['SERVERLESS_PLATFORM_STAGE']
+    })
+
+    it('should pass configuration values from serverless.yaml', async () => {
+      // given
+      serverlessStub.service.custom.eventgateway = {
+        url: 'http://localhost:4001',
+        configurationUrl: 'http://localhost:4002',
+        space: 'test',
+        accessKey: 'xxx'
+      }
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['before:deploy:finalize']()
+
+      // then
+      expect(clientSpy).to.have.been.calledWithNew // eslint-disable-line
+      expect(clientSpy.lastCall.args).to.deep.equal([
+        {
+          url: 'http://localhost:4001',
+          configurationUrl: 'http://localhost:4002',
+          accessKey: 'xxx',
+          space: 'test'
+        },
+        'testService',
+        'dev'
+      ])
+    })
+
+    it('should construct URL from "app" and "tenant" values', async () => {
+      // given
+      serverlessStub.service.app = 'testApp'
+      serverlessStub.service.tenant = 'testTenant'
+      serverlessStub.service.custom.eventgateway = {}
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['before:deploy:finalize']()
+
+      // then
+      expect(clientSpy.lastCall.args[0].url).to.equal('testTenant-testApp.slsgateway.com')
+    })
+
+    it('should override URL constructed from "app" and "tenant" with the one specified in configuration', async () => {
+      // given
+      serverlessStub.service.app = 'testApp'
+      serverlessStub.service.tenant = 'testTenant'
+      serverlessStub.service.custom.eventgateway = { url: 'http://localhost:4001' }
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['before:deploy:finalize']()
+
+      // then
+      expect(clientSpy.lastCall.args[0].url).to.equal('http://localhost:4001')
+    })
+
+    it('should default to the local access key', async () => {
+      // given
+      serverlessStub.service.custom.eventgateway = { url: 'http://localhost:4001' }
+      serverlessStub.utils.getLocalAccessKey = sinon.stub().returns('testKey')
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['before:deploy:finalize']()
+
+      // then
+      expect(clientSpy.lastCall.args[0].accessKey).to.equal('testKey')
+    })
+
+    it('should use non-prod env is SERVERLESS_PLATFORM_STAGE is set', async () => {
+      // given
+      process.env.SERVERLESS_PLATFORM_STAGE = 'dev'
+      serverlessStub.service.app = 'testApp'
+      serverlessStub.service.tenant = 'testTenant'
+      serverlessStub.service.custom.eventgateway = {}
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['before:deploy:finalize']()
+
+      // then
+      expect(clientSpy.lastCall.args[0].url).to.equal('testTenant-testApp.eventgateway-dev.io')
+    })
   })
 
   describe('addUserResource', () => {
