@@ -532,7 +532,7 @@ class EGPlugin {
         }
       }
 
-      func.events = rawFunc.events.map(event => event.eventgateway)
+      func.events = rawFunc.events.filter(event => event.eventgateway).map(event => event.eventgateway)
       func.events.forEach(event => (event.functionId = func.functionId))
 
       funcs[key] = func

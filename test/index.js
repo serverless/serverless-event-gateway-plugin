@@ -664,6 +664,12 @@ describe('Event Gateway Plugin', () => {
                 path: '/hello',
                 method: 'GET'
               }
+            },
+            {
+              http: {
+                path: '/test',
+                method: 'GET'
+              }
             }
           ]
         }
@@ -681,7 +687,7 @@ describe('Event Gateway Plugin', () => {
       await plugin.hooks['before:deploy:finalize']()
 
       // then
-      return expect(Client.prototype.subscribe).calledWith({
+      expect(Client.prototype.subscribe).calledWith({
         type: 'async',
         eventType: 'user.created',
         functionId: 'testService-dev-testFunc',
