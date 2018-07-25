@@ -321,6 +321,41 @@ describe('Event Gateway Plugin', () => {
       })
     })
 
+    it('should delete remove function before registering new', async () => {
+      // given
+      serverlessStub.service.functions = {
+        testFunc: {
+          name: 'testService-dev-testFunc',
+          handler: 'test',
+          events: [{ eventgateway: { type: 'async', eventType: 'test.event' } }]
+        }
+      }
+      Client.prototype.listServiceFunctions.resolves([{ functionId: 'testService-dev-testFuncRemoved' }])
+      Client.prototype.listServiceSubscriptions.resolves([
+        { subscriptionId: 'id', functionId: 'testService-dev-testFuncRemoved' }
+      ])
+      Client.prototype.subscribe.resolves()
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['before:deploy:finalize']()
+
+      // then
+      expect(Client.prototype.deleteFunction).calledWith({ functionId: 'testService-dev-testFuncRemoved' })
+      expect(Client.prototype.createFunction).calledWith({
+        functionId: 'testService-dev-testFunc',
+        provider: {
+          arn: 'arn:aws:lambda:us-east-1:123:function:testService-dev-testFunc',
+          awsAccessKeyId: 'ak',
+          awsSecretAccessKey: 'sk',
+          region: 'us-east-1'
+        },
+        type: 'awslambda'
+      })
+      expect(Client.prototype.deleteFunction).to.have.been.calledBefore(Client.prototype.createFunction)
+    })
+
     describe('connector functions', () => {
       beforeEach(() => {
         Client.prototype.listServiceEventTypes.resolves([])

@@ -177,19 +177,22 @@ class EGPlugin {
     this.setupClient()
 
     const definedFunctions = this.definedFunctions(await this.fetchStackOutputs())
+
+    // register event type before creating subscriptions
+    let registeredEventTypes = await this.client.listServiceEventTypes()
+    await this.registerEventTypes(registeredEventTypes, definedFunctions)
+
+    // create, update or delete functions
     let registeredFunctions = await this.client.listServiceFunctions()
     let registeredSubscriptions = await this.client.listServiceSubscriptions()
     let registeredCORS = await this.client.listServiceCORS()
-    const registeredEventTypes = await this.client.listServiceEventTypes()
-
-    await this.registerEventTypes(registeredEventTypes, definedFunctions)
-
+    let functionsToRegister = {} // new functions have to be registered after cleanup otherwise subscription can conflict
     await Promise.all(
       Object.keys(definedFunctions).map(async key => {
         const definedFunction = definedFunctions[key]
         const registeredFunction = registeredFunctions.find(f => f.functionId === definedFunction.functionId)
         if (!registeredFunction) {
-          await this.registerFunction(key, definedFunction)
+          functionsToRegister[key] = definedFunction
         } else {
           registeredFunctions = registeredFunctions.filter(f => f.functionId !== definedFunction.functionId)
           await this.updateFunction(key, definedFunction, registeredFunction, registeredSubscriptions, registeredCORS)
@@ -200,8 +203,17 @@ class EGPlugin {
     )
 
     await this.cleanupFunctionsAndSubscriptions(registeredFunctions, registeredSubscriptions, registeredEventTypes)
+    await this.registerFunctions(functionsToRegister)
     await this.cleanupEventTypes(registeredEventTypes, definedFunctions)
     await this.cleanupCORS(registeredCORS)
+  }
+
+  registerFunctions (functionsToRegister) {
+    return Promise.all(
+      Object.keys(functionsToRegister).map(key => {
+        return this.registerFunction(key, functionsToRegister[key])
+      })
+    )
   }
 
   async registerFunction (key, fn) {
