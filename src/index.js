@@ -354,7 +354,7 @@ class EGPlugin {
 
   // event typed defined in custom section
   definedEventTypes () {
-    if (this.serverless.service.custom.eventTypes) {
+    if (this.serverless.service.custom && this.serverless.service.custom.eventTypes) {
       return Object.keys(this.serverless.service.custom.eventTypes).map(name => {
         const eventTypes = this.serverless.service.custom.eventTypes
         let authorizer
