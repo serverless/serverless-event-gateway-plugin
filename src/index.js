@@ -408,7 +408,7 @@ class EGPlugin {
     return usedTypes
   }
 
-  // register event types defined in serverless.yaml
+  // register event types defined explicitly in serverless.yaml or used by subscription
   async registerEventTypes (registeredTypes, definedFunctions) {
     const definedTypes = this.definedEventTypes()
 
@@ -739,10 +739,6 @@ class EGPlugin {
       }
       return agg
     }, {})
-
-    if (!outputs.EventGatewayUserAccessKey || !outputs.EventGatewayUserSecretKey) {
-      throw new Error('Event Gateway Access Key or Secret Key not found in outputs')
-    }
 
     return outputs
   }
