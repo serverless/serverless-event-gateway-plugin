@@ -599,7 +599,7 @@ class EGPlugin {
         style: { head: ['bold'] }
       })
       subscriptions.forEach(s => {
-        table.push([s.event || '', s.functionId || '', s.method || '', s.path || ''])
+        table.push([s.eventType || '', s.functionId || '', s.method || '', s.path || ''])
       })
       this.serverless.cli.consoleLog(chalk.bold('Subscriptions'))
       this.serverless.cli.consoleLog(table.toString())
