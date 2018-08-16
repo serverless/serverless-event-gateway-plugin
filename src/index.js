@@ -572,8 +572,9 @@ class EGPlugin {
   printGatewayInfo () {
     this.serverless.cli.consoleLog(chalk.bold('Event Gateway'))
     this.serverless.cli.consoleLog('')
-    this.serverless.cli.consoleLog(` space: ${this.client.config.space}`)
-    this.serverless.cli.consoleLog(` endpoint: ${this.client.config.eventsUrl}`)
+    this.serverless.cli.consoleLog(` Tenant: ${this.serverless.service.tenant}`)
+    this.serverless.cli.consoleLog(` App: ${this.serverless.service.app}`)
+    this.serverless.cli.consoleLog(` Domain: ${this.client.config.eventsUrl}`)
     this.serverless.cli.consoleLog('')
   }
 
