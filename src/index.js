@@ -101,6 +101,7 @@ class EGPlugin {
     const eventTypes = this.definedEventTypes()
 
     for (let key in this.serverless.service.functions) {
+      if (!this.serverless.service.functions.hasOwnProperty(key)) continue
       const func = this.serverless.service.functions[key]
 
       // function is not subscribed nor is an authorizer
