@@ -612,7 +612,7 @@ class EGPlugin {
   }
 
   printCORS () {
-    return this.client.listServiceCORS()
+    return this.client.listCORS()
       .then(cors => {
         const table = new Table({
           head: ['Path', 'Origins', 'Methods', 'Headers', 'Allow Credentials'],
