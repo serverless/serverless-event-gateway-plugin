@@ -618,7 +618,7 @@ class EGPlugin {
           head: ['Path', 'Origins', 'Methods', 'Headers', 'Allow Credentials'],
           style: { head: ['bold'] }
         })
-        cors.forEach(x => table.push([x.path || '', x.allowedOrigins.join(', ') || '', x.allowedMethods.join(', ') || '', x.allowedHeaders.join(', ') || '', x.allowCredentials || '?']))
+        cors.forEach(x => table.push([x.path || '', x.allowedOrigins.join(', ') || '', x.allowedMethods.join(', ') || '', x.allowedHeaders.join(', ') || '', JSON.stringify(x.allowCredentials)]))
         this.serverless.cli.consoleLog(chalk.bold('CORS'))
         this.serverless.cli.consoleLog(table.toString())
         this.serverless.cli.consoleLog('')
