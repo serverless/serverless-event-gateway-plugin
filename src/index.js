@@ -567,7 +567,8 @@ class EGPlugin {
     this.setupClient()
     this.serverless.cli.consoleLog('')
     this.printGatewayInfo()
-    this.printFunctions()
+    this.printEventTypes()
+      .then(() => this.printFunctions())
       .then(() => this.printSubscriptions())
       .then(() => this.printCORS())
   }
@@ -579,6 +580,21 @@ class EGPlugin {
     this.serverless.cli.consoleLog(` App: ${this.serverless.service.app}`)
     this.serverless.cli.consoleLog(` Domain: ${this.client.config.eventsUrl}`)
     this.serverless.cli.consoleLog('')
+  }
+
+  printEventTypes () {
+    return this.client.listEventTypes().then(es => {
+      const table = new Table({
+        head: ['Name', 'Space', 'Authorizer'],
+        style: { head: ['bold'] }
+      })
+      es.forEach(x => {
+        table.push([x.name || '', x.space || '', x.authorizerId || 'null'])
+      })
+      this.serverless.cli.consoleLog(chalk.bold('Event Types'))
+      this.serverless.cli.consoleLog(table.toString())
+      this.serverless.cli.consoleLog('')
+    })
   }
 
   printFunctions () {
