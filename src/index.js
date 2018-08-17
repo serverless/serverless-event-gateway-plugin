@@ -46,7 +46,13 @@ class EGPlugin {
           },
           dashboard: {
             usage: 'Show functions and subscriptions in Space for Event Gateway',
-            lifecycleEvents: ['dashboard']
+            lifecycleEvents: ['dashboard'],
+            options: {
+              event: {
+                usage: 'Short version of your Event Gateway dashboard',
+                shortcut: 'short'
+              }
+            }
           }
         }
       }
@@ -566,11 +572,50 @@ class EGPlugin {
   printDashboard () {
     this.setupClient()
     this.serverless.cli.consoleLog('')
+    if (this.options.short) {
+      return this.printShortDashboard()
+    }
     this.printGatewayInfo()
     this.printEventTypes()
       .then(() => this.printFunctions())
       .then(() => this.printSubscriptions())
       .then(() => this.printCORS())
+  }
+
+  async printShortDashboard () {
+    const lt = await this.client.listEventTypes()
+    const fs = await this.client.listFunctions()
+    const ss = await this.client.listSubscriptions()
+    const cs = await this.client.listCORS()
+
+    const table = new Table({
+      head: ['Event Type', 'Function ID', 'Method', 'Path', 'Allowed Origins', 'Allowed Methods', 'Allowed Headers', 'Allow Credentials'],
+      style: { head: ['bold'] }
+    })
+    const data = []
+    fs.forEach(x => data.push({functionId: x.functionId}))
+    ss.forEach(x => {
+      const index = data.findIndex(i => i.functionId === x.functionId)
+      if (index > -1) {
+        const d = data[index]
+        return Object.assign(data[index], {eventType: [].concat(data[index].eventType || []).concat(x.eventType), method: [].concat(d.method || []).concat(x.method), path: x.path})
+      }
+      data.push({eventType: [x.eventType], functionId: x.functionId, method: [x.method], path: x.path})
+    })
+    cs.forEach(x => {
+      const index = data.findIndex(i => i.path === x.path)
+      if (index > -1) {
+        const d = data[index]
+        return Object.assign(data[index], {method: [].concat(d.method || []).concat(x.method), allowedOrigins: [].concat(d.allowedOrigins || []).concat(x.allowedOrigins), allowedMethods: [].concat(d.allowedMethods || []).concat(x.allowedMethods), allowedHeaders: [].concat(d.allowedHeaders || []).concat(x.allowedHeaders), allowCredentials: [].concat(d.allowCredentials || []).concat(x.allowCredentials)})
+      }
+      data.push({method: [x.method], path: x.path, allowedOrigins: x.allowedOrigins, allowedMethods: x.allowedMethods, allowedHeaders: x.allowedHeaders, allowCredentials: x.allowCredentials})
+    })
+    lt.forEach(x => (data.find(i => i.eventType === x.eventType) < 0) ? data.push({eventType: [x.name]}) : null)
+    data.forEach(x => table.push([x.eventType ? Array.from(new Set(x.eventType)) : '', x.functionId || '', x.method ? Array.from(new Set(x.method)).join(', ') : '', x.path || '', x.allowedOrigins ? Array.from(new Set(x.allowedOrigins)).join(', ') : '', x.allowedMethods ? Array.from(new Set(x.allowedMethods)).join(', ') : '', x.allowedHeaders ? Array.from(new Set(x.allowedHeaders)).join(', ') : '', x.allowCredentials ? Array.from(new Set(x.allowCredentials)).join(', ') : '']))
+
+    this.serverless.cli.consoleLog(chalk.bold('Event Gateway dashboard'))
+    this.serverless.cli.consoleLog(table.toString())
+    this.serverless.cli.consoleLog('')
   }
 
   printGatewayInfo () {
