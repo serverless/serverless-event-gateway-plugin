@@ -660,11 +660,11 @@ class EGPlugin {
   printSubscriptions () {
     return this.client.listSubscriptions().then(subscriptions => {
       const table = new Table({
-        head: ['Event', 'Function ID', 'Method', 'Path'],
+        head: ['Event', 'Type', 'Function ID', 'Method', 'Path'],
         style: { head: ['bold'] }
       })
       subscriptions.forEach(s => {
-        table.push([s.eventType || '', s.functionId || '', s.method || '', s.path || ''])
+        table.push([s.eventType || '', s.type || '', s.functionId || '', s.method || '', s.path || ''])
       })
       this.serverless.cli.consoleLog(chalk.bold('Subscriptions'))
       this.serverless.cli.consoleLog(table.toString())
