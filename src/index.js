@@ -48,7 +48,7 @@ class EGPlugin {
             usage: 'Show functions and subscriptions in Space for Event Gateway',
             lifecycleEvents: ['dashboard'],
             options: {
-              event: {
+              short: {
                 usage: 'Short version of your Event Gateway dashboard',
                 shortcut: 'short'
               }
