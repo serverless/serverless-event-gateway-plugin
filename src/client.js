@@ -1,25 +1,25 @@
 const SDK = require('@serverless/event-gateway-sdk')
 
 module.exports = class EGClient extends SDK {
-  constructor (config, service, stage) {
+  constructor(config, service, stage) {
     super(config)
     this.service = service
     this.stage = stage
   }
 
-  listServiceEventTypes () {
+  listServiceEventTypes() {
     return this.listEventTypes({
       'metadata.service': this.service,
       'metadata.stage': this.stage
     })
   }
 
-  createEventType (et) {
+  createEventType(et) {
     et.metadata = this.metadata()
     return super.createEventType(et)
   }
 
-  updateEventType (et) {
+  updateEventType(et) {
     if (!et.metadata) {
       et.metadata = this.metadata()
     } else {
@@ -30,16 +30,16 @@ module.exports = class EGClient extends SDK {
     return super.updateEventType(et)
   }
 
-  async listServiceFunctions () {
+  async listServiceFunctions() {
     try {
       const functions = await this.listFunctions()
-      return functions.filter(f => f.functionId.startsWith(`${this.service}-${this.stage}`))
+      return functions.filter((f) => f.functionId.startsWith(`${this.service}-${this.stage}`))
     } catch (err) {
       return []
     }
   }
 
-  async createFunction (fn) {
+  async createFunction(fn) {
     try {
       fn.metadata = this.metadata()
       return await super.createFunction(fn)
@@ -48,7 +48,7 @@ module.exports = class EGClient extends SDK {
     }
   }
 
-  async updateFunction (fn) {
+  async updateFunction(fn) {
     if (!fn.metadata) {
       fn.metadata = this.metadata()
     } else {
@@ -59,16 +59,16 @@ module.exports = class EGClient extends SDK {
     return super.updateFunction(fn)
   }
 
-  async listServiceSubscriptions () {
+  async listServiceSubscriptions() {
     try {
       const subscriptions = await this.listSubscriptions()
-      return subscriptions.filter(s => s.functionId.startsWith(`${this.service}-${this.stage}`))
+      return subscriptions.filter((s) => s.functionId.startsWith(`${this.service}-${this.stage}`))
     } catch (err) {
       return []
     }
   }
 
-  async subscribe (event) {
+  async subscribe(event) {
     let subscription = {
       functionId: event.functionId,
       path: eventPath(event, this.config.space),
@@ -97,7 +97,9 @@ module.exports = class EGClient extends SDK {
     } catch (err) {
       if (subscription.type === 'sync' && err.message.includes('already exists')) {
         const msg =
-          `Could not subscribe the ${subscription.functionId} function to the '${subscription.path}' ` +
+          `Could not subscribe the ${subscription.functionId} function to the '${
+            subscription.path
+          }' ` +
           `endpoint. A subscription for that endpoint and method already ` +
           `exists in another service. Please remove that subscription before ` +
           `registering this subscription.`
@@ -108,14 +110,14 @@ module.exports = class EGClient extends SDK {
     }
   }
 
-  listServiceCORS () {
+  listServiceCORS() {
     return this.listCORS({
       'metadata.service': this.service,
       'metadata.stage': this.stage
     })
   }
 
-  async createCORSFromSubscription (event) {
+  async createCORSFromSubscription(event) {
     const cors = {
       path: eventPath(event, this.config.space),
       metadata: this.metadata()
@@ -144,7 +146,7 @@ module.exports = class EGClient extends SDK {
     }
   }
 
-  updateCORSFromSubscription (event, cors) {
+  updateCORSFromSubscription(event, cors) {
     const updatedCORS = cors
 
     if (event.cors === true) {
@@ -162,7 +164,7 @@ module.exports = class EGClient extends SDK {
     return this.updateCORS(updatedCORS)
   }
 
-  updateCORS (cors) {
+  updateCORS(cors) {
     if (!cors.metadata) {
       cors.metadata = this.metadata()
     } else {
@@ -173,7 +175,7 @@ module.exports = class EGClient extends SDK {
     return super.updateCORS(cors)
   }
 
-  metadata () {
+  metadata() {
     return {
       service: this.service,
       stage: this.stage
@@ -181,7 +183,7 @@ module.exports = class EGClient extends SDK {
   }
 }
 
-function eventPath (event, space) {
+function eventPath(event, space) {
   let path = event.path || '/'
 
   if (!path.startsWith('/')) {
@@ -191,6 +193,6 @@ function eventPath (event, space) {
   return `/${space}${path}`
 }
 
-function toUpperCase (str) {
+function toUpperCase(str) {
   return str instanceof String ? str.toUpperCase() : str
 }

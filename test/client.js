@@ -29,7 +29,9 @@ describe('Event Gateway Client', () => {
     })
 
     it('should return event types for specific service', () => {
-      SDK.prototype.listEventTypes.resolves([{ name: 'test1', metadata: { service: 'testService1', stage: 'dev' } }])
+      SDK.prototype.listEventTypes.resolves([
+        { name: 'test1', metadata: { service: 'testService1', stage: 'dev' } }
+      ])
       const client = new Client({ url: 'http://localhost:4001' }, 'testService1', 'dev')
 
       const result = client.listServiceEventTypes()
@@ -174,7 +176,12 @@ describe('Event Gateway Client', () => {
     it('should not override existing metadata', () => {
       const client = new Client({ url: 'http://localhost:4001' }, 'test', 'dev')
 
-      client.updateFunction({ functionId: 'test', type: 'awslambda', provider: {}, metadata: { foo: 'bar' } })
+      client.updateFunction({
+        functionId: 'test',
+        type: 'awslambda',
+        provider: {},
+        metadata: { foo: 'bar' }
+      })
 
       return expect(SDK.prototype.updateFunction).to.calledWith({
         functionId: 'test',
@@ -288,7 +295,9 @@ describe('Event Gateway Client', () => {
     })
 
     it('should return CORS configurations for specific service', () => {
-      SDK.prototype.listCORS.resolves([{ corsId: 'test', metadata: { service: 'testService1', stage: 'dev' } }])
+      SDK.prototype.listCORS.resolves([
+        { corsId: 'test', metadata: { service: 'testService1', stage: 'dev' } }
+      ])
       const client = new Client({ url: 'http://localhost:4001' }, 'testService1', 'dev')
 
       const result = client.listServiceCORS()

@@ -216,15 +216,17 @@ describe('Event Gateway Plugin', () => {
 
       // then
       const resources = plugin.serverless.service.provider.compiledCloudFormationTemplate.Resources
-      expect(resources.EventGatewayUserPolicy.Properties.PolicyDocument.Statement[1]).to.deep.equal({
-        Action: ['lambda:InvokeFunction'],
-        Effect: 'Allow',
-        Resource: [
-          {
-            'Fn::GetAtt': ['TestLambdaFunction', 'Arn']
-          }
-        ]
-      })
+      expect(resources.EventGatewayUserPolicy.Properties.PolicyDocument.Statement[1]).to.deep.equal(
+        {
+          Action: ['lambda:InvokeFunction'],
+          Effect: 'Allow',
+          Resource: [
+            {
+              'Fn::GetAtt': ['TestLambdaFunction', 'Arn']
+            }
+          ]
+        }
+      )
     })
   })
 
@@ -241,7 +243,9 @@ describe('Event Gateway Plugin', () => {
       const emitArgs = Client.prototype.emit.lastCall.args[0]
       expect(emitArgs.eventType).to.equal('user.created')
       expect(emitArgs.cloudEventsVersion).to.equal('0.1')
-      expect(emitArgs.source).to.equal('https://github.com/serverless/serverless-event-gateway-plugin')
+      expect(emitArgs.source).to.equal(
+        'https://github.com/serverless/serverless-event-gateway-plugin'
+      )
       expect(emitArgs.eventID).not.empty // eslint-disable-line
       expect(emitArgs.contentType).to.equal('application/json')
       expect(emitArgs.data).to.deep.equal({ foo: 'bar' })
@@ -330,7 +334,9 @@ describe('Event Gateway Plugin', () => {
           events: [{ eventgateway: { type: 'async', eventType: 'test.event' } }]
         }
       }
-      Client.prototype.listServiceFunctions.resolves([{ functionId: 'testService-dev-testFuncRemoved' }])
+      Client.prototype.listServiceFunctions.resolves([
+        { functionId: 'testService-dev-testFuncRemoved' }
+      ])
       Client.prototype.listServiceSubscriptions.resolves([
         { subscriptionId: 'id', functionId: 'testService-dev-testFuncRemoved' }
       ])
@@ -342,7 +348,9 @@ describe('Event Gateway Plugin', () => {
       await plugin.hooks['before:deploy:finalize']()
 
       // then
-      expect(Client.prototype.deleteFunction).calledWith({ functionId: 'testService-dev-testFuncRemoved' })
+      expect(Client.prototype.deleteFunction).calledWith({
+        functionId: 'testService-dev-testFuncRemoved'
+      })
       expect(Client.prototype.createFunction).calledWith({
         functionId: 'testService-dev-testFunc',
         provider: {
@@ -353,7 +361,9 @@ describe('Event Gateway Plugin', () => {
         },
         type: 'awslambda'
       })
-      expect(Client.prototype.deleteFunction).to.have.been.calledBefore(Client.prototype.createFunction)
+      expect(Client.prototype.deleteFunction).to.have.been.calledBefore(
+        Client.prototype.createFunction
+      )
     })
 
     describe('connector functions', () => {
@@ -382,7 +392,12 @@ describe('Event Gateway Plugin', () => {
         // then
         return expect(Client.prototype.createFunction).calledWith({
           functionId: 'testService-dev-saveToKinesis',
-          provider: { streamName: 'testStream', awsAccessKeyId: 'ak', awsSecretAccessKey: 'sk', region: 'us-east-1' },
+          provider: {
+            streamName: 'testStream',
+            awsAccessKeyId: 'ak',
+            awsSecretAccessKey: 'sk',
+            region: 'us-east-1'
+          },
           type: 'awskinesis'
         })
       })
@@ -427,8 +442,10 @@ describe('Event Gateway Plugin', () => {
         return expect(plugin.hooks['package:initialize']).to.throw(
           `Invalid inputs for ${funcType} function "${funcName}". ` +
             `You provided ${Object.keys(func.inputs)
-              .map(i => `"${i}"`)
-              .join(', ')}. Please provide either "logicalId" or both "arn" and "streamName" inputs.`
+              .map((i) => `"${i}"`)
+              .join(
+                ', '
+              )}. Please provide either "logicalId" or both "arn" and "streamName" inputs.`
         )
       })
 
@@ -451,8 +468,10 @@ describe('Event Gateway Plugin', () => {
         return expect(plugin.hooks['package:initialize']).to.throw(
           `Invalid inputs for ${funcType} function "${funcName}". ` +
             `You provided ${Object.keys(func.inputs)
-              .map(i => `"${i}"`)
-              .join(', ')}. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
+              .map((i) => `"${i}"`)
+              .join(
+                ', '
+              )}. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
         )
       })
 
@@ -475,8 +494,10 @@ describe('Event Gateway Plugin', () => {
         return expect(plugin.hooks['package:initialize']).to.throw(
           `Invalid inputs for ${funcType} function "${funcName}". ` +
             `You provided ${Object.keys(func.inputs)
-              .map(i => `"${i}"`)
-              .join(', ')}. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
+              .map((i) => `"${i}"`)
+              .join(
+                ', '
+              )}. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
         )
       })
 
@@ -499,8 +520,10 @@ describe('Event Gateway Plugin', () => {
         return expect(plugin.hooks['package:initialize']).to.throw(
           `Invalid inputs for ${funcType} function "${funcName}". ` +
             `You provided ${Object.keys(func.inputs)
-              .map(i => `"${i}"`)
-              .join(', ')}. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
+              .map((i) => `"${i}"`)
+              .join(
+                ', '
+              )}. Please provide either "logicalId" or both "arn" and "${inputName}" inputs.`
         )
       })
 
@@ -576,7 +599,10 @@ describe('Event Gateway Plugin', () => {
       // given
       serverlessStub.service.custom.eventTypes = { 'test.event': {} }
       Client.prototype.listServiceFunctions.resolves([])
-      Client.prototype.listServiceEventTypes.resolves([{ name: 'test.event' }, { name: 'test.event.deleted' }])
+      Client.prototype.listServiceEventTypes.resolves([
+        { name: 'test.event' },
+        { name: 'test.event.deleted' }
+      ])
       const plugin = constructPlugin(serverlessStub)
 
       // when
@@ -805,7 +831,10 @@ describe('Event Gateway Plugin', () => {
         path: '/hello1'
       }
       Client.prototype.unsubscribe.resolves()
-      Client.prototype.listServiceSubscriptions.resolves([existingSubscription, notUsedSubscription])
+      Client.prototype.listServiceSubscriptions.resolves([
+        existingSubscription,
+        notUsedSubscription
+      ])
       Client.prototype.listServiceFunctions.resolves([{ functionId: 'test-dev-testFunc' }])
       const plugin = constructPlugin(serverlessStub)
 
@@ -893,10 +922,10 @@ const constructPlugin = (serverless, options) => {
   serverless = merge(
     {
       cli: {
-        log (params) {
+        log(params) {
           return params
         },
-        consoleLog (params) {
+        consoleLog(params) {
           return params
         }
       },

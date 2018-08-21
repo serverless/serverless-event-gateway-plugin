@@ -4,7 +4,8 @@
   "main": "src/index.js",
   "scripts": {
     "lint": "eslint .",
-    "test": "mocha"
+    "test": "mocha",
+    "lint:staged": "lint-staged"
   },
   "repository": {
     "url": "https://github.com/serverless/serverless-event-gateway-plugin",
@@ -23,31 +24,33 @@
     "chai-as-promised": "^7.1.1",
     "codecov": "^3.0.1",
     "eslint": "^4.18.0",
-    "eslint-config-standard": "^11.0.0",
+    "eslint-config-prettier": "^3.0.1",
     "eslint-plugin-import": "^2.8.0",
     "eslint-plugin-node": "^6.0.0",
+    "eslint-plugin-prettier": "^2.6.2",
     "eslint-plugin-promise": "^3.6.0",
-    "eslint-plugin-standard": "^3.0.1",
     "istanbul": "^1.1.0-alpha.1",
+    "lint-staged": "^7.2.2",
     "mocha": "^5.0.5",
+    "pre-commit": "^1.2.2",
+    "prettier": "^1.14.2",
     "proxyquire": "^2.0.1",
     "sinon": "^4.5.0",
     "sinon-chai": "^3.0.0"
-  },
-  "eslintConfig": {
-    "extends": "standard",
-    "env": {
-      "node": true,
-      "mocha": true
-    },
-    "rules": {
-      "node/no-unsupported-features": "error"
-    }
   },
   "engines": {
     "node": ">=8"
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix .",
+      "git add -A"
+    ]
+  },
+  "pre-commit": [
+    "lint:staged"
+  ]
 }
