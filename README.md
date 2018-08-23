@@ -2,6 +2,10 @@
 
 Serverless plugin that publishes your functions and subscriptions to Hosted Event Gateway.
 
+[![Build Status](https://travis-ci.org/serverless/serverless-event-gateway-plugin.svg?branch=master)](https://travis-ci.org/serverless/serverless-event-gateway-plugin)
+[![Known Vulnerabilities](https://snyk.io/test/github/serverless/serverless-event-gateway-plugin/badge.svg)](https://snyk.io/test/github/serverless/serverless-event-gateway-plugin)
+
+
 ## Setup
 
 This is best used with the [hosted version of the Event Gateway](https://dashboard.serverless.com/) provided by Serverless, Inc. as a fully-managed service.

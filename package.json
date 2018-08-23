@@ -5,6 +5,7 @@
   "scripts": {
     "lint": "eslint .",
     "test": "mocha",
+    "test:ci": "snyk test && npm test",
     "lint:staged": "lint-staged"
   },
   "repository": {
@@ -36,7 +37,8 @@
     "prettier": "^1.14.2",
     "proxyquire": "^2.0.1",
     "sinon": "^4.5.0",
-    "sinon-chai": "^3.0.0"
+    "sinon-chai": "^3.0.0",
+    "snyk": "^1.92.5"
   },
   "engines": {
     "node": ">=8"
