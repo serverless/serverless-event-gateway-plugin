@@ -645,42 +645,89 @@ class EGPlugin {
       .then(() => this.printCORS())
   }
 
-  async printShortDashboard () {
+  async printShortDashboard() {
     const eventTypes = await this.client.listEventTypes()
     const functions = await this.client.listFunctions()
     const subscriptions = await this.client.listSubscriptions()
     const cors = await this.client.listCORS()
 
     const table = new Table({
-      head: ['Event Type', 'Function ID', 'Method', 'Path', 'Allowed Origins', 'Allowed Methods', 'Allowed Headers', 'Allow Credentials'],
+      head: [
+        'Event Type',
+        'Function ID',
+        'Method',
+        'Path',
+        'Allowed Origins',
+        'Allowed Methods',
+        'Allowed Headers',
+        'Allow Credentials'
+      ],
       style: { head: ['bold'] }
     })
     const data = []
-    functions.forEach(x => data.push({functionId: x.functionId}))
-    subscriptions.forEach(x => {
+    functions.forEach((x) => data.push({ functionId: x.functionId }))
+    subscriptions.forEach((x) => {
       // Check if another element with functionId as this subscription's functionId exists
-      const index = data.findIndex(i => i.functionId === x.functionId)
+      const index = data.findIndex((i) => i.functionId === x.functionId)
       if (index > -1) {
         // Update the existing element if found
         const d = data[index]
-        return Object.assign(data[index], {eventType: [].concat(data[index].eventType || []).concat(x.eventType), method: [].concat(d.method || []).concat(x.method), path: x.path})
+        return Object.assign(data[index], {
+          eventType: [].concat(data[index].eventType || []).concat(x.eventType),
+          method: [].concat(d.method || []).concat(x.method),
+          path: x.path
+        })
       }
       // Push new element otherwise
-      data.push({eventType: [x.eventType], functionId: x.functionId, method: [x.method], path: x.path})
+      data.push({
+        eventType: [x.eventType],
+        functionId: x.functionId,
+        method: [x.method],
+        path: x.path
+      })
     })
-    cors.forEach(x => {
+    cors.forEach((x) => {
       // Check if another element with exact path as this cors rule exists
-      const index = data.findIndex(i => i.path === x.path)
+      const index = data.findIndex((i) => i.path === x.path)
       if (index > -1) {
         // Update the existing element if found
         const d = data[index]
-        return Object.assign(data[index], {method: [].concat(d.method || []).concat(x.method), allowedOrigins: [].concat(d.allowedOrigins || []).concat(x.allowedOrigins), allowedMethods: [].concat(d.allowedMethods || []).concat(x.allowedMethods), allowedHeaders: [].concat(d.allowedHeaders || []).concat(x.allowedHeaders), allowCredentials: [].concat(d.allowCredentials || []).concat(x.allowCredentials)})
+        return Object.assign(data[index], {
+          method: [].concat(d.method || []).concat(x.method),
+          allowedOrigins: [].concat(d.allowedOrigins || []).concat(x.allowedOrigins),
+          allowedMethods: [].concat(d.allowedMethods || []).concat(x.allowedMethods),
+          allowedHeaders: [].concat(d.allowedHeaders || []).concat(x.allowedHeaders),
+          allowCredentials: [].concat(d.allowCredentials || []).concat(x.allowCredentials)
+        })
       }
       // Push new element otherwise
-      data.push({method: [x.method], path: x.path, allowedOrigins: x.allowedOrigins, allowedMethods: x.allowedMethods, allowedHeaders: x.allowedHeaders, allowCredentials: x.allowCredentials})
+      data.push({
+        method: [x.method],
+        path: x.path,
+        allowedOrigins: x.allowedOrigins,
+        allowedMethods: x.allowedMethods,
+        allowedHeaders: x.allowedHeaders,
+        allowCredentials: x.allowCredentials
+      })
     })
-    eventTypes.forEach(x => (data.find(i => i.eventType === x.eventType) < 0) ? data.push({eventType: [x.name]}) : null)
-    data.forEach(x => table.push([x.eventType ? Array.from(new Set(x.eventType)) : '', x.functionId || '', x.method ? Array.from(new Set(x.method)).join(', ') : '', x.path || '', x.allowedOrigins ? Array.from(new Set(x.allowedOrigins)).join(', ') : '', x.allowedMethods ? Array.from(new Set(x.allowedMethods)).join(', ') : '', x.allowedHeaders ? Array.from(new Set(x.allowedHeaders)).join(', ') : '', x.allowCredentials ? Array.from(new Set(x.allowCredentials)).join(', ') : '']))
+    eventTypes.forEach(
+      (x) =>
+        data.find((i) => i.eventType === x.eventType) < 0
+          ? data.push({ eventType: [x.name] })
+          : null
+    )
+    data.forEach((x) =>
+      table.push([
+        x.eventType ? Array.from(new Set(x.eventType)) : '',
+        x.functionId || '',
+        x.method ? Array.from(new Set(x.method)).join(', ') : '',
+        x.path || '',
+        x.allowedOrigins ? Array.from(new Set(x.allowedOrigins)).join(', ') : '',
+        x.allowedMethods ? Array.from(new Set(x.allowedMethods)).join(', ') : '',
+        x.allowedHeaders ? Array.from(new Set(x.allowedHeaders)).join(', ') : '',
+        x.allowCredentials ? Array.from(new Set(x.allowCredentials)).join(', ') : ''
+      ])
+    )
 
     this.serverless.cli.consoleLog(chalk.bold('Event Gateway dashboard'))
     this.serverless.cli.consoleLog(table.toString())
@@ -696,21 +743,21 @@ class EGPlugin {
     this.serverless.cli.consoleLog('')
   }
 
-  printEventTypes () {
-    return this.client.listEventTypes().then(eventTypes => {
+  printEventTypes() {
+    return this.client.listEventTypes().then((eventTypes) => {
       const table = new Table({
         head: ['Name', 'Space', 'Authorizer'],
         style: { head: ['bold'] }
       })
-      eventTypes.forEach(x => table.push([x.name || '', x.space || '', x.authorizerId || 'null']))
+      eventTypes.forEach((x) => table.push([x.name || '', x.space || '', x.authorizerId || 'null']))
       this.serverless.cli.consoleLog(chalk.bold('Event Types'))
       this.serverless.cli.consoleLog(table.toString())
       this.serverless.cli.consoleLog('')
     })
   }
 
-  printFunctions () {
-    return this.client.listFunctions().then(functions => {
+  printFunctions() {
+    return this.client.listFunctions().then((functions) => {
       const table = new Table({
         head: ['Function ID', 'Region', 'ARN'],
         style: { head: ['bold'] }
@@ -730,8 +777,14 @@ class EGPlugin {
         head: ['Event', 'Type', 'Function ID', 'Method', 'Path'],
         style: { head: ['bold'] }
       })
-      subscriptions.forEach(s => {
-        table.push([s.eventType || '', s.type || '', s.functionId || '', s.method || '', s.path || ''])
+      subscriptions.forEach((s) => {
+        table.push([
+          s.eventType || '',
+          s.type || '',
+          s.functionId || '',
+          s.method || '',
+          s.path || ''
+        ])
       })
       this.serverless.cli.consoleLog(chalk.bold('Subscriptions'))
       this.serverless.cli.consoleLog(table.toString())
@@ -739,21 +792,29 @@ class EGPlugin {
     })
   }
 
-  printCORS () {
-    return this.client.listCORS()
-      .then(corsConfigs => {
-        const table = new Table({
-          head: ['Method', 'Path', 'Origins', 'Methods', 'Headers', 'Allow Credentials'],
-          style: { head: ['bold'] }
-        })
-        corsConfigs.forEach(cors => table.push([cors.method || '', cors.path || '', cors.allowedOrigins.join(', ') || '', cors.allowedMethods.join(', ') || '', cors.allowedHeaders.join(', ') || '', JSON.stringify(cors.allowCredentials)]))
-        this.serverless.cli.consoleLog(chalk.bold('CORS'))
-        this.serverless.cli.consoleLog(table.toString())
-        this.serverless.cli.consoleLog('')
+  printCORS() {
+    return this.client.listCORS().then((corsConfigs) => {
+      const table = new Table({
+        head: ['Method', 'Path', 'Origins', 'Methods', 'Headers', 'Allow Credentials'],
+        style: { head: ['bold'] }
       })
+      corsConfigs.forEach((cors) =>
+        table.push([
+          cors.method || '',
+          cors.path || '',
+          cors.allowedOrigins.join(', ') || '',
+          cors.allowedMethods.join(', ') || '',
+          cors.allowedHeaders.join(', ') || '',
+          JSON.stringify(cors.allowCredentials)
+        ])
+      )
+      this.serverless.cli.consoleLog(chalk.bold('CORS'))
+      this.serverless.cli.consoleLog(table.toString())
+      this.serverless.cli.consoleLog('')
+    })
   }
 
-  connectorFunctionOutput (name, type, { logicalId, arn }) {
+  connectorFunctionOutput(name, type, { logicalId, arn }) {
     const names = this.connectorFunctionNames(name, type)
     const outObject = {}
     outObject[names.outputName] = {
