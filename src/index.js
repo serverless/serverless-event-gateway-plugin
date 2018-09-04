@@ -632,20 +632,26 @@ class EGPlugin {
       })
   }
 
-  printDashboard() {
+  async printDashboard() {
     this.setupClient()
-    this.serverless.cli.consoleLog('')
     if (this.options.short) {
-      return this.printShortDashboard()
+      return this.printDashboardInfo(await this.getShortDashboardInfo())
     }
-    this.printGatewayInfo()
-    this.printEventTypes()
-      .then(() => this.printFunctions())
-      .then(() => this.printSubscriptions())
-      .then(() => this.printCORS())
+    this.printDashboardInfo(this.getGatewayInfo())
+    this.printDashboardInfo(await this.getEventTypesInfo())
+    this.printDashboardInfo(await this.getFunctionsInfo())
+    this.printDashboardInfo(await this.getSubscriptionsInfo())
+    this.printDashboardInfo(await this.getCORSInfo())
   }
 
-  async printShortDashboard() {
+  printDashboardInfo({ heading, content }) {
+    // eslint-disable-next-line no-console
+    console.log(`\n ${chalk.bold(heading)}`)
+    // eslint-disable-next-line no-console
+    console.log(`${content}\n`)
+  }
+
+  async getShortDashboardInfo() {
     const eventTypes = await this.client.listEventTypes()
     const functions = await this.client.listFunctions()
     const subscriptions = await this.client.listSubscriptions()
@@ -729,34 +735,38 @@ class EGPlugin {
       ])
     )
 
-    this.serverless.cli.consoleLog(chalk.bold('Event Gateway dashboard'))
-    this.serverless.cli.consoleLog(table.toString())
-    this.serverless.cli.consoleLog('')
+    return {
+      heading: 'Event Gateway dashboard',
+      content: table.toString()
+    }
   }
 
-  printGatewayInfo() {
-    this.serverless.cli.consoleLog(chalk.bold('Event Gateway'))
-    this.serverless.cli.consoleLog('')
-    this.serverless.cli.consoleLog(` Tenant: ${this.serverless.service.tenant}`)
-    this.serverless.cli.consoleLog(` App: ${this.serverless.service.app}`)
-    this.serverless.cli.consoleLog(` Domain: ${this.client.config.eventsUrl}`)
-    this.serverless.cli.consoleLog('')
+  getGatewayInfo() {
+    return {
+      heading: 'Event Gateway',
+      content:
+        `\nTenant: ${this.serverless.service.tenant}\n` +
+        `App: ${this.serverless.service.app}\n` +
+        `Domain: ${this.client.config.eventsUrl}\n`
+    }
   }
 
-  printEventTypes() {
+  getEventTypesInfo() {
     return this.client.listEventTypes().then((eventTypes) => {
       const table = new Table({
         head: ['Name', 'Space', 'Authorizer'],
         style: { head: ['bold'] }
       })
       eventTypes.forEach((x) => table.push([x.name || '', x.space || '', x.authorizerId || 'null']))
-      this.serverless.cli.consoleLog(chalk.bold('Event Types'))
-      this.serverless.cli.consoleLog(table.toString())
-      this.serverless.cli.consoleLog('')
+
+      return {
+        heading: 'Event Types',
+        content: table.toString()
+      }
     })
   }
 
-  printFunctions() {
+  getFunctionsInfo() {
     return this.client.listFunctions().then((functions) => {
       const table = new Table({
         head: ['Function ID', 'Region', 'ARN'],
@@ -765,13 +775,15 @@ class EGPlugin {
       functions.forEach((f) => {
         table.push([f.functionId || '', f.provider.region || '', f.provider.arn || ''])
       })
-      this.serverless.cli.consoleLog(chalk.bold('Functions'))
-      this.serverless.cli.consoleLog(table.toString())
-      this.serverless.cli.consoleLog('')
+
+      return {
+        heading: 'Functions',
+        content: table.toString()
+      }
     })
   }
 
-  printSubscriptions() {
+  getSubscriptionsInfo() {
     return this.client.listSubscriptions().then((subscriptions) => {
       const table = new Table({
         head: ['Event', 'Type', 'Function ID', 'Method', 'Path'],
@@ -786,13 +798,15 @@ class EGPlugin {
           s.path || ''
         ])
       })
-      this.serverless.cli.consoleLog(chalk.bold('Subscriptions'))
-      this.serverless.cli.consoleLog(table.toString())
-      this.serverless.cli.consoleLog('')
+
+      return {
+        heading: 'Subscriptions',
+        content: table.toString()
+      }
     })
   }
 
-  printCORS() {
+  getCORSInfo() {
     return this.client.listCORS().then((corsConfigs) => {
       const table = new Table({
         head: ['Method', 'Path', 'Origins', 'Methods', 'Headers', 'Allow Credentials'],
@@ -808,9 +822,11 @@ class EGPlugin {
           JSON.stringify(cors.allowCredentials)
         ])
       )
-      this.serverless.cli.consoleLog(chalk.bold('CORS'))
-      this.serverless.cli.consoleLog(table.toString())
-      this.serverless.cli.consoleLog('')
+
+      return {
+        heading: 'CORS',
+        content: table.toString()
+      }
     })
   }
 
