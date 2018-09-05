@@ -916,6 +916,78 @@ describe('Event Gateway Plugin', () => {
       })
     })
   })
+
+  describe('Printing', () => {
+    beforeEach(() => {
+      Client.prototype.listFunctions.resolves([
+        { functionId: 'test-dev-testFunc', provider: { region: 'ding', arn: 'example.arn' } }
+      ])
+      Client.prototype.listEventTypes.resolves([{ name: 'myevent', space: 'myspace' }])
+      Client.prototype.listCORS.resolves([
+        {
+          method: 'GET',
+          path: '/something',
+          allowedOrigins: ['*'],
+          allowedMethods: ['GET', 'POST'],
+          allowedHeaders: ['Content-Type'],
+          allowCredentials: true
+        }
+      ])
+      Client.prototype.listSubscriptions.resolves([
+        {
+          functionId: 'test-dev-testFunc',
+          eventType: 'user.created',
+          type: 'async',
+          path: '/default/',
+          method: 'POST'
+        }
+      ])
+
+      serverlessStub.service.tenant = 'my-tenant'
+      serverlessStub.service.service = 'my-service'
+      serverlessStub.service.app = 'my-app'
+      serverlessStub.service.eventsUrl = 'https://example.eventgateway.com'
+      serverlessStub.service.functions = {
+        testFunc: {
+          name: 'testService-dev-testFunc',
+          handler: 'test',
+          events: [
+            {
+              eventgateway: {
+                type: 'async',
+                eventType: 'user.created',
+                path: '/hello',
+                method: 'GET'
+              }
+            },
+            {
+              http: {
+                path: '/test',
+                method: 'GET'
+              }
+            }
+          ]
+        }
+      }
+    })
+
+    it('should return correct header information to print', async () => {
+      // given
+      const plugin = constructPlugin(serverlessStub)
+      plugin.options = {}
+      plugin.printDashboardInfo = sandbox.spy(plugin.printDashboardInfo)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['gateway:dashboard:dashboard']()
+
+      // then
+      return expect(plugin.printDashboardInfo).calledWith({
+        heading: 'Event Gateway',
+        content: '\n' + 'Tenant: my-tenant\n' + 'App: my-app\n' + 'Domain: http://localhost:4001\n'
+      })
+    })
+  })
 })
 
 const constructPlugin = (serverless, options) => {
