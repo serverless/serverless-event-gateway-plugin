@@ -745,8 +745,9 @@ class EGPlugin {
     return {
       heading: 'Event Gateway',
       content:
-        `\nTenant: ${this.serverless.service.tenant}\n` +
-        `App: ${this.serverless.service.app}\n` +
+        (!this.serverless.service.tenant ? '' : `\nTenant: ${this.serverless.service.tenant}\n`) +
+        (!this.serverless.service.app ? '' : `App: ${this.serverless.service.app}\n`) +
+        (!this.serverless.service.space ? '' : `Space: ${this.serverless.service.space}\n`) +
         `Domain: ${this.client.config.eventsUrl}\n`
     }
   }
