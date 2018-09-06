@@ -671,67 +671,67 @@ class EGPlugin {
       style: { head: ['bold'] }
     })
     const data = []
-    functions.forEach((x) => data.push({ functionId: x.functionId }))
-    subscriptions.forEach((x) => {
+    functions.forEach((func) => data.push({ functionId: func.functionId }))
+    subscriptions.forEach((sub) => {
       // Check if another element with functionId as this subscription's functionId exists
-      const index = data.findIndex((i) => i.functionId === x.functionId)
+      const index = data.findIndex((i) => i.functionId === sub.functionId)
       if (index > -1) {
         // Update the existing element if found
         const d = data[index]
         return Object.assign(data[index], {
-          eventType: [].concat(data[index].eventType || []).concat(x.eventType),
-          method: [].concat(d.method || []).concat(x.method),
-          path: x.path
+          eventType: [].concat(data[index].eventType || []).concat(sub.eventType),
+          method: [].concat(d.method || []).concat(sub.method),
+          path: sub.path
         })
       }
       // Push new element otherwise
       data.push({
-        eventType: [x.eventType],
-        functionId: x.functionId,
-        method: [x.method],
-        path: x.path
+        eventType: [sub.eventType],
+        functionId: sub.functionId,
+        method: [sub.method],
+        path: sub.path
       })
     })
-    cors.forEach((x) => {
+    cors.forEach((corsRule) => {
       // Check if another element with exact path as this cors rule exists
-      const index = data.findIndex((i) => i.path === x.path)
+      const index = data.findIndex((i) => i.path === corsRule.path)
       if (index > -1) {
         // Update the existing element if found
         const d = data[index]
         return Object.assign(data[index], {
-          method: [].concat(d.method || []).concat(x.method),
-          allowedOrigins: [].concat(d.allowedOrigins || []).concat(x.allowedOrigins),
-          allowedMethods: [].concat(d.allowedMethods || []).concat(x.allowedMethods),
-          allowedHeaders: [].concat(d.allowedHeaders || []).concat(x.allowedHeaders),
-          allowCredentials: [].concat(d.allowCredentials || []).concat(x.allowCredentials)
+          method: [].concat(d.method || []).concat(corsRule.method),
+          allowedOrigins: [].concat(d.allowedOrigins || []).concat(corsRule.allowedOrigins),
+          allowedMethods: [].concat(d.allowedMethods || []).concat(corsRule.allowedMethods),
+          allowedHeaders: [].concat(d.allowedHeaders || []).concat(corsRule.allowedHeaders),
+          allowCredentials: [].concat(d.allowCredentials || []).concat(corsRule.allowCredentials)
         })
       }
       // Push new element otherwise
       data.push({
-        method: [x.method],
-        path: x.path,
-        allowedOrigins: x.allowedOrigins,
-        allowedMethods: x.allowedMethods,
-        allowedHeaders: x.allowedHeaders,
-        allowCredentials: x.allowCredentials
+        method: [corsRule.method],
+        path: corsRule.path,
+        allowedOrigins: corsRule.allowedOrigins,
+        allowedMethods: corsRule.allowedMethods,
+        allowedHeaders: corsRule.allowedHeaders,
+        allowCredentials: corsRule.allowCredentials
       })
     })
     eventTypes.forEach(
-      (x) =>
-        data.find((i) => i.eventType === x.eventType) < 0
-          ? data.push({ eventType: [x.name] })
+      (eventType) =>
+        data.find((i) => i.eventType === eventType.eventType) < 0
+          ? data.push({ eventType: [eventType.name] })
           : null
     )
-    data.forEach((x) =>
+    data.forEach((item) =>
       table.push([
-        x.eventType ? Array.from(new Set(x.eventType)) : '',
-        x.functionId || '',
-        x.method ? Array.from(new Set(x.method)).join(', ') : '',
-        x.path || '',
-        x.allowedOrigins ? Array.from(new Set(x.allowedOrigins)).join(', ') : '',
-        x.allowedMethods ? Array.from(new Set(x.allowedMethods)).join(', ') : '',
-        x.allowedHeaders ? Array.from(new Set(x.allowedHeaders)).join(', ') : '',
-        x.allowCredentials ? Array.from(new Set(x.allowCredentials)).join(', ') : ''
+        item.eventType ? Array.from(new Set(item.eventType)) : '',
+        item.functionId || '',
+        item.method ? Array.from(new Set(item.method)).join(', ') : '',
+        item.path || '',
+        item.allowedOrigins ? Array.from(new Set(item.allowedOrigins)).join(', ') : '',
+        item.allowedMethods ? Array.from(new Set(item.allowedMethods)).join(', ') : '',
+        item.allowedHeaders ? Array.from(new Set(item.allowedHeaders)).join(', ') : '',
+        item.allowCredentials ? Array.from(new Set(item.allowCredentials)).join(', ') : ''
       ])
     )
 
@@ -757,7 +757,9 @@ class EGPlugin {
         head: ['Name', 'Space', 'Authorizer'],
         style: { head: ['bold'] }
       })
-      eventTypes.forEach((x) => table.push([x.name || '', x.space || '', x.authorizerId || 'null']))
+      eventTypes.forEach((eventType) =>
+        table.push([eventType.name || '', eventType.space || '', eventType.authorizerId || 'null'])
+      )
 
       return {
         heading: 'Event Types',
