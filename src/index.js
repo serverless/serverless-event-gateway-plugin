@@ -11,6 +11,7 @@ class EGPlugin {
     this.options = options
     this.awsProvider = this.serverless.getProvider('aws')
 
+    this.printDashboardInfo.bind(this)
     this.hooks = {
       'package:initialize': this.prepareFunctions.bind(this),
       'package:compileEvents': this.addUserResource.bind(this),
@@ -645,10 +646,8 @@ class EGPlugin {
   }
 
   printDashboardInfo({ heading, content }) {
-    // eslint-disable-next-line no-console
-    console.log(`\n ${chalk.bold(heading)}`)
-    // eslint-disable-next-line no-console
-    console.log(`${content}\n`)
+    this.serverless.cli.consoleLog(`\n ${chalk.bold(heading)}`)
+    this.serverless.cli.consoleLog(`${content}\n`)
   }
 
   async getShortDashboardInfo() {
