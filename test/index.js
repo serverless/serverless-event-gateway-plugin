@@ -1005,7 +1005,7 @@ describe('Event Gateway Plugin', () => {
         style: { head: ['bold'] }
       })
       new Array({ name: 'myevent', space: 'myspace' }).forEach((eventType) =>
-        table.push([eventType.name || '', eventType.space || '', eventType.authorizerId || 'null'])
+        table.push([eventType.name, eventType.space, eventType.authorizerId || 'null'])
       )
       return expect(plugin.printDashboardInfo).calledWith({
         heading: 'Event Types',
@@ -1062,13 +1062,7 @@ describe('Event Gateway Plugin', () => {
         path: '/default/',
         method: 'POST'
       }).forEach((s) => {
-        table.push([
-          s.eventType || '',
-          s.type || '',
-          s.functionId || '',
-          s.method || '',
-          s.path || ''
-        ])
+        table.push([s.eventType, s.type, s.functionId, s.method || '', s.path])
       })
       return expect(plugin.printDashboardInfo).calledWith({
         heading: 'Subscriptions',
@@ -1100,8 +1094,8 @@ describe('Event Gateway Plugin', () => {
         allowCredentials: true
       }).forEach((cors) =>
         table.push([
-          cors.method || '',
-          cors.path || '',
+          cors.method,
+          cors.path,
           cors.allowedOrigins.join(', ') || '',
           cors.allowedMethods.join(', ') || '',
           cors.allowedHeaders.join(', ') || '',

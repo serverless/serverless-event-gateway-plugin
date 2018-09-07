@@ -760,7 +760,7 @@ class EGPlugin {
         style: { head: ['bold'] }
       })
       eventTypes.forEach((eventType) =>
-        table.push([eventType.name || '', eventType.space || '', eventType.authorizerId || 'null'])
+        table.push([eventType.name, eventType.space, eventType.authorizerId || 'null'])
       )
 
       return {
@@ -794,13 +794,7 @@ class EGPlugin {
         style: { head: ['bold'] }
       })
       subscriptions.forEach((s) => {
-        table.push([
-          s.eventType || '',
-          s.type || '',
-          s.functionId || '',
-          s.method || '',
-          s.path || ''
-        ])
+        table.push([s.eventType, s.type, s.functionId, s.method || '', s.path])
       })
 
       return {
@@ -818,8 +812,8 @@ class EGPlugin {
       })
       corsConfigs.forEach((cors) =>
         table.push([
-          cors.method || '',
-          cors.path || '',
+          cors.method,
+          cors.path,
           cors.allowedOrigins.join(', ') || '',
           cors.allowedMethods.join(', ') || '',
           cors.allowedHeaders.join(', ') || '',
