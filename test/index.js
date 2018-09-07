@@ -1,6 +1,7 @@
 const chai = require('chai')
 chai.use(require('chai-as-promised'))
 chai.use(require('sinon-chai'))
+const Table = require('cli-table')
 const expect = chai.expect
 const merge = require('lodash.merge')
 const sinon = require('sinon')
@@ -985,6 +986,131 @@ describe('Event Gateway Plugin', () => {
       return expect(plugin.printDashboardInfo).calledWith({
         heading: 'Event Gateway',
         content: '\n' + 'Tenant: my-tenant\n' + 'App: my-app\n' + 'Domain: http://localhost:4001\n'
+      })
+    })
+
+    it('should return correct event types information', async () => {
+      // given
+      const plugin = constructPlugin(serverlessStub)
+      plugin.options = {}
+      plugin.printDashboardInfo = sandbox.spy(plugin.printDashboardInfo)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['gateway:dashboard:dashboard']()
+
+      // then
+      const table = new Table({
+        head: ['Name', 'Space', 'Authorizer'],
+        style: { head: ['bold'] }
+      })
+      new Array({ name: 'myevent', space: 'myspace' }).forEach((eventType) =>
+        table.push([eventType.name || '', eventType.space || '', eventType.authorizerId || 'null'])
+      )
+      return expect(plugin.printDashboardInfo).calledWith({
+        heading: 'Event Types',
+        content: table.toString()
+      })
+    })
+
+    it('should return correct functions information', async () => {
+      // given
+      const plugin = constructPlugin(serverlessStub)
+      plugin.options = {}
+      plugin.printDashboardInfo = sandbox.spy(plugin.printDashboardInfo)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['gateway:dashboard:dashboard']()
+
+      // then
+      const table = new Table({
+        head: ['Function ID', 'Region', 'ARN'],
+        style: { head: ['bold'] }
+      })
+      new Array({
+        functionId: 'test-dev-testFunc',
+        provider: { region: 'ding', arn: 'example.arn' }
+      }).forEach((f) => {
+        table.push([f.functionId || '', f.provider.region || '', f.provider.arn || ''])
+      })
+      return expect(plugin.printDashboardInfo).calledWith({
+        heading: 'Functions',
+        content: table.toString()
+      })
+    })
+
+    it('should return correct subscriptions information', async () => {
+      // given
+      const plugin = constructPlugin(serverlessStub)
+      plugin.options = {}
+      plugin.printDashboardInfo = sandbox.spy(plugin.printDashboardInfo)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['gateway:dashboard:dashboard']()
+
+      // then
+      const table = new Table({
+        head: ['Event', 'Type', 'Function ID', 'Method', 'Path'],
+        style: { head: ['bold'] }
+      })
+      new Array({
+        functionId: 'test-dev-testFunc',
+        eventType: 'user.created',
+        type: 'async',
+        path: '/default/',
+        method: 'POST'
+      }).forEach((s) => {
+        table.push([
+          s.eventType || '',
+          s.type || '',
+          s.functionId || '',
+          s.method || '',
+          s.path || ''
+        ])
+      })
+      return expect(plugin.printDashboardInfo).calledWith({
+        heading: 'Subscriptions',
+        content: table.toString()
+      })
+    })
+
+    it('should return correct CORS information', async () => {
+      // given
+      const plugin = constructPlugin(serverlessStub)
+      plugin.options = {}
+      plugin.printDashboardInfo = sandbox.spy(plugin.printDashboardInfo)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['gateway:dashboard:dashboard']()
+
+      // then
+      const table = new Table({
+        head: ['Method', 'Path', 'Origins', 'Methods', 'Headers', 'Allow Credentials'],
+        style: { head: ['bold'] }
+      })
+      new Array({
+        method: 'GET',
+        path: '/something',
+        allowedOrigins: ['*'],
+        allowedMethods: ['GET', 'POST'],
+        allowedHeaders: ['Content-Type'],
+        allowCredentials: true
+      }).forEach((cors) =>
+        table.push([
+          cors.method || '',
+          cors.path || '',
+          cors.allowedOrigins.join(', ') || '',
+          cors.allowedMethods.join(', ') || '',
+          cors.allowedHeaders.join(', ') || '',
+          JSON.stringify(cors.allowCredentials)
+        ])
+      )
+      return expect(plugin.printDashboardInfo).calledWith({
+        heading: 'CORS',
+        content: table.toString()
       })
     })
   })
