@@ -211,9 +211,8 @@ class EGPlugin {
             registeredSubscriptions,
             registeredCORS
           )
+          await this.updateEventTypesAuthorizers(definedFunction.functionId)
         }
-
-        await this.updateEventTypesAuthorizers(definedFunction.functionId)
       })
     )
 
@@ -223,6 +222,12 @@ class EGPlugin {
       registeredEventTypes
     )
     await this.registerFunctions(functionsToRegister)
+    await Promise.all(
+      Object.keys(functionsToRegister).map(async (key) => {
+        const func = functionsToRegister[key]
+        await this.updateEventTypesAuthorizers(func.functionId)
+      })
+    )
     await this.cleanupEventTypes(registeredEventTypes, definedFunctions)
     await this.cleanupCORS(registeredCORS)
   }
