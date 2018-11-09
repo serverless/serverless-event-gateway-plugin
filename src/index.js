@@ -60,7 +60,7 @@ class EGPlugin {
   }
 
   setupClient() {
-    let url, accessKey, space, configurationUrl, domain
+    let url, accessKey, space, configurationUrl, domain, connectorUrl
 
     // Load variables based on app and tenant
     domain = 'slsgateway.com'
@@ -81,6 +81,7 @@ class EGPlugin {
       url = this.serverless.service.custom.eventgateway.url || url
       space = this.serverless.service.custom.eventgateway.space
       configurationUrl = this.serverless.service.custom.eventgateway.configurationUrl
+      connectorUrl = this.serverless.service.custom.eventgateway.connectorUrl
       accessKey = this.serverless.service.custom.eventgateway.accessKey || accessKey
     }
 
@@ -89,6 +90,7 @@ class EGPlugin {
       {
         url,
         configurationUrl,
+        connectorUrl,
         space,
         accessKey
       },
@@ -180,6 +182,9 @@ class EGPlugin {
     this.serverless.cli.consoleLog(chalk.yellow.underline('Event Gateway Plugin'))
 
     this.setupClient()
+
+    // register connections
+    await this.manageConnections()
 
     const definedFunctions = this.definedFunctions(await this.fetchStackOutputs())
 
@@ -459,6 +464,45 @@ class EGPlugin {
     })
 
     return usedTypes
+  }
+
+  async manageConnections() {
+    const registeredConnections = await this.client.listServiceConnections()
+    let definedConnections = []
+    if (this.serverless.service.custom && this.serverless.service.custom.connections) {
+      definedConnections = this.serverless.service.custom.connections
+    }
+
+    // register missing connections
+    await Promise.all(
+      definedConnections.map(async (definedConnection) => {
+        const registeredConnection = registeredConnections.find((conn) =>
+          this.areConnectionsEqual(conn, definedConnection)
+        )
+        if (!registeredConnection) {
+          try {
+            await this.client.createConnection(definedConnection)
+            this.serverless.cli.consoleLog(
+              `EventGateway: Connection "${definedConnection.type}" created.`
+            )
+          } catch (err) {
+            throw err
+          }
+        }
+      })
+    )
+
+    // remove non-defined connections
+    let toRemove = registeredConnections.filter(
+      (registeredConn) =>
+        !definedConnections.find((conn) => this.areConnectionsEqual(conn, registeredConn))
+    )
+    await Promise.all(
+      toRemove.map(async (conn) => {
+        await this.client.deleteConnection({ connectionId: conn.connectionId })
+        this.serverless.cli.consoleLog(`EventGateway: Connection "${conn.type}" deleted.`)
+      })
+    )
   }
 
   // register event types defined explicitly in serverless.yaml or used by subscription
@@ -846,6 +890,15 @@ class EGPlugin {
 
   areFunctionsEqual(newFunc, existing) {
     return newFunc.type === existing.type && isEqual(newFunc.provider, existing.provider)
+  }
+
+  areConnectionsEqual(conn1, conn2) {
+    return (
+      conn1.target === conn2.target &&
+      conn1.eventType === conn2.eventType &&
+      conn1.type === conn2.type &&
+      isEqual(conn1.source, conn2.source)
+    )
   }
 }
 

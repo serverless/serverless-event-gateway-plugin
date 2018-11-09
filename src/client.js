@@ -175,6 +175,22 @@ module.exports = class EGClient extends SDK {
     return super.updateCORS(cors)
   }
 
+  async listServiceConnections() {
+    return this.listConnections({
+      'metadata.service': this.service,
+      'metadata.stage': this.stage
+    })
+  }
+
+  async createConnection(conn) {
+    try {
+      conn.metadata = this.metadata()
+      return await super.createConnection(conn)
+    } catch (err) {
+      throw new Error(`Couldn't register a connection. ${err}`)
+    }
+  }
+
   metadata() {
     return {
       service: this.service,

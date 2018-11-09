@@ -26,7 +26,9 @@ describe('Event Gateway Plugin', () => {
     serverlessStub = {
       service: {
         service: 'testService',
-        custom: { eventgateway: { url: 'http://localhost:4001' } },
+        custom: {
+          eventgateway: { url: 'http://localhost:4000', connectorUrl: 'http://localhost:4002' }
+        },
         functions: {},
         provider: {
           compiledCloudFormationTemplate: {
@@ -72,6 +74,7 @@ describe('Event Gateway Plugin', () => {
       Client.prototype.listServiceEventTypes.resolves([])
       Client.prototype.listServiceCORS.resolves([])
       Client.prototype.listServiceFunctions.resolves([])
+      Client.prototype.listServiceConnections.resolves([])
       serverlessStub.service.functions = {}
     })
 
@@ -82,8 +85,9 @@ describe('Event Gateway Plugin', () => {
     it('should pass configuration values from serverless.yaml', async () => {
       // given
       serverlessStub.service.custom.eventgateway = {
-        url: 'http://localhost:4001',
-        configurationUrl: 'http://localhost:4002',
+        url: 'http://localhost:4000',
+        configurationUrl: 'http://localhost:4001',
+        connectorUrl: 'http://localhost:4002',
         space: 'test',
         accessKey: 'xxx'
       }
@@ -97,8 +101,9 @@ describe('Event Gateway Plugin', () => {
       expect(clientSpy).to.have.been.calledWithNew // eslint-disable-line
       expect(clientSpy.lastCall.args).to.deep.equal([
         {
-          url: 'http://localhost:4001',
-          configurationUrl: 'http://localhost:4002',
+          url: 'http://localhost:4000',
+          configurationUrl: 'http://localhost:4001',
+          connectorUrl: 'http://localhost:4002',
           accessKey: 'xxx',
           space: 'test'
         },
@@ -256,6 +261,7 @@ describe('Event Gateway Plugin', () => {
     beforeEach(() => {
       Client.prototype.listServiceEventTypes.resolves([])
       Client.prototype.listServiceCORS.resolves([])
+      Client.prototype.listServiceConnections.resolves([])
     })
 
     it('should register awslambda function', async () => {
@@ -556,6 +562,7 @@ describe('Event Gateway Plugin', () => {
   describe('event types', () => {
     beforeEach(() => {
       Client.prototype.listServiceCORS.resolves([])
+      Client.prototype.listServiceConnections.resolves([])
 
       serverlessStub.service.functions = {
         testFunc: {
@@ -677,6 +684,7 @@ describe('Event Gateway Plugin', () => {
       Client.prototype.listServiceEventTypes.resolves([])
       Client.prototype.listServiceFunctions.resolves([])
       Client.prototype.listServiceCORS.resolves([])
+      Client.prototype.listServiceConnections.resolves([])
 
       serverlessStub.service.functions = {
         testFunc: {
@@ -914,6 +922,61 @@ describe('Event Gateway Plugin', () => {
         // then
         return expect(Client.prototype.unsubscribe).not.called
       })
+    })
+  })
+
+  describe('connections', () => {
+    beforeEach(() => {
+      Client.prototype.listServiceFunctions.resolves([])
+      Client.prototype.listServiceEventTypes.resolves([])
+      Client.prototype.listServiceCORS.resolves([])
+    })
+
+    it('should create connections defined in configuration', async () => {
+      // given
+      Client.prototype.listServiceConnections.resolves([
+        {
+          connectionId: 'testID',
+          type: 'awskinesis',
+          target: 'http://localhost:4000'
+        }
+      ])
+      serverlessStub.service.custom.connections = [
+        {
+          type: 'awscloudtrail',
+          target: 'http://localhost:4000'
+        }
+      ]
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['before:deploy:finalize']()
+
+      // then
+      return expect(Client.prototype.createConnection).calledWith({
+        type: 'awscloudtrail',
+        target: 'http://localhost:4000'
+      })
+    })
+
+    it('should remove event types no longer defined in configuration', async () => {
+      // given
+      Client.prototype.listServiceConnections.resolves([
+        {
+          connectionId: 'xxx',
+          type: 'awskinesis',
+          target: 'http://localhost:4002'
+        }
+      ])
+      const plugin = constructPlugin(serverlessStub)
+
+      // when
+      plugin.hooks['package:initialize']()
+      await plugin.hooks['before:deploy:finalize']()
+
+      // then
+      return expect(Client.prototype.deleteConnection).calledWith({ connectionId: 'xxx' })
     })
   })
 })
